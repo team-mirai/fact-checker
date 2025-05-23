@@ -33,7 +33,7 @@ app.get('/cron/fetch', async (c) => {
   // keyword で最近 50 件取得
   const timeline = await twitter.v2.search(
     '"チームみらい" OR "安野たかひろ"',
-    { max_results: 50 }
+    { max_results: 10 }
   )
 
   for await (const tweet of timeline) {
