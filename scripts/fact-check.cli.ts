@@ -1,5 +1,3 @@
-
-
 import { factCheck } from "../src/lib/fact-check";
 
 async function main() {
@@ -11,18 +9,13 @@ async function main() {
   }
 
   try {
-    const result = await factCheck(statement);
-    console.log(
-      `\n=== ファクトチェック結果 =================\n${JSON.stringify(
-        result,
-        null,
-        2,
-      )}\n`,
-    );
-    if (!result.ok && result.diffSummary) {
-      console.log("\n=== 差分サマリ =================\n");
-      console.log(result.diffSummary);
-    }
+    const { ok, answer } = await factCheck(statement);
+
+    console.log("\n=== ファクトチェック回答 =================");
+    console.log(answer);
+
+    console.log("\n=== 判定 ================================");
+    console.log(JSON.stringify({ ok }, null, 2));
   } catch (err) {
     console.error("💥 factCheck 実行中にエラー:", err);
     process.exit(1);

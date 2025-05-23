@@ -2,17 +2,17 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const vectorStoreId = process.env.VECTOR_STORE_ID!;
+
 export interface CheckResult {
-  ok: boolean;            // 事実と概ね一致?
-  diffSummary?: string;   // 乖離がある場合のみ
+  ok: boolean;     // 事実と概ね一致?
+  answer: string;  // GPT が生成した全文 (OK / NG + 詳細 & 出典)
 }
 
 /**
- * ファクトチェック本体  
- * @param statement チェック対象文章 (X で拾った Tweet, YouTube 概要欄等)
+ * ファクトチェック本体
+ * @param statement チェック対象文章
  */
 export async function factCheck(statement: string): Promise<CheckResult> {
-
   const res = await openai.responses.create({
     model: "o3-mini",
     tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }],
@@ -29,12 +29,12 @@ export async function factCheck(statement: string): Promise<CheckResult> {
       },
       {
         role: "user",
-        content: [
-          statement
-        ].join("\n"),
+        content: statement,
       },
     ],
   });
+
+  /* ───────── 出典を整形 ───────── */
   const citationBlocks: string[] = [];
 
   for (const item of res.output ?? []) {
@@ -59,12 +59,9 @@ ${citationBlocks.join("\n\n")}
 
 </details>`
     : res.output_text;
-  /* ──────────────────────────────────────── */
 
-  const ok = /^OK/i.test(answer); // GPT に「OK」始まりで返してもらうシンプルな判定
+  /* ───────── 判定 ───────── */
+  const ok = /^OK/i.test(answer);
 
-  return {
-    ok,
-    diffSummary: ok ? undefined : answer,
-  };
+  return { ok, answer };
 } 
