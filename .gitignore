@@ -3,3 +3,6 @@ node_modules/
 
 # Secrets
 .env
+
+# config
+config/

@@ -31,18 +31,15 @@ app.get('/', (c) => c.text('Hello Hono!'))
 // 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)
 app.get('/cron/fetch', async (c) => {
   // keyword で最近 50 件取得
-  const timeline = await twitter.v2.search(
-    '"チームみらい" OR "安野たかひろ"',
-    { max_results: 10 }
-  )
-
-  for await (const tweet of timeline) {
-    const check = await factCheck(tweet.text)
+  const res = await twitter.v2.search('チームみらい', { max_results: 10 });
+  console.log(res.tweets);
+  // res.data は 1 ページぶんだけ
+  for (const tweet of res.tweets ?? []) {
+    const check = await factCheck(tweet.text);
     if (!check.ok) {
       // await notifySlack(check.diffSummary!, tweet.text)
     }
   }
-
   return c.json({ ok: true })
 })
 
