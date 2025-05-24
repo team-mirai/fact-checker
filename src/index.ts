@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { serve } from '@hono/node-server'
 import { factCheck } from './lib/fact-check'
 // import { notifySlack } from './lib/slack'
 import { TwitterApi } from 'twitter-api-v2'
-
+import { verifyCron } from './middlewares/verify-cron'
+import { serve } from '@hono/node-server'
 
 /* ------------------------------------------------------------------ */
 /*  Hono ルーティング定義                                             */
@@ -30,7 +30,7 @@ const twitter = haveOAuth1
 app.get('/', (c) => c.text('Hello Hono!'))
 
 // 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)
-app.get('/cron/fetch', async (c) => {
+app.get('/cron/fetch', verifyCron, async (c) => {
   const query =
     '("チームみらい" OR "安野たかひろ") -is:retweet -is:quote -is:reply -"RT @" lang:ja';
 
@@ -98,3 +98,8 @@ export default {
   port: Number(process.env.PORT) || 8080,
   hostname: '0.0.0.0',
 };
+
+if (process.env.NODE_ENV !== 'production') {
+  serve({ fetch: app.fetch, port: 8080 })
+  console.log('🚀  Hono dev server on http://localhost:8080')
+}

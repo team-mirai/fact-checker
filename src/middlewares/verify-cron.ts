@@ -1,0 +1,10 @@
+// src/middlewares/verify-cron.ts
+import { Context, Next } from 'hono'
+
+export const verifyCron = async (c: Context, next: Next) => {
+  const expected = process.env.CRON_SECRET
+  const received  = c.req.header('x-cron-secret')
+
+  if (!expected || received !== expected) return c.text('Forbidden', 403)
+  await next()
+}
