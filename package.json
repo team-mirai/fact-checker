@@ -7,6 +7,7 @@
   "dependencies": {
     "hono": "^4.7.10",
     "twitter-api-v2": "^1.23.2",
+    "@slack/bolt": "^4.4.0",
     "@slack/web-api": "^7.2.0",
     "openai": "^4.0.0",
     "marked": "^15.0.12"
