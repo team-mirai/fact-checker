@@ -6,6 +6,7 @@ const vectorStoreId = process.env.VECTOR_STORE_ID!;
 export interface CheckResult {
   ok: boolean;     // 事実と概ね一致?
   answer: string;  // GPT が生成した全文 (OK / NG + 詳細 & 出典)
+  citations: string[];  // 出典だけを配列で保持
 }
 
 /**
@@ -23,8 +24,8 @@ export async function factCheck(statement: string): Promise<CheckResult> {
         role: "system",
         content: `あなたはファクトチェッカーです。データソースとしてファクトが与えられています。
         与えられた文章にファクトと比較して誤りがあるか確認し､回答をデータソースとともに出力してください。
-        誤りがない場合は回答の冒頭にOKと出力してください。その後データソースのどこに記載があるか､詳細を出力してください。
-        誤りがある場合は回答の冒頭にNGと出力してください。その後誤りの箇所を指摘してください。
+        誤りがない場合は回答の冒頭にOKと出力し､その後データソースのどこに記載があるか､詳細を出力し､出典を出力してください。
+        誤りがある場合は回答の冒頭にNGと出力し､その後データソースと比較した誤りの箇所を出力し､出典を出力してください。
         `,
       },
       {
@@ -47,8 +48,15 @@ export async function factCheck(statement: string): Promise<CheckResult> {
     }
   }
 
+  /* ① まず本文だけをトリムして保持 */
+  const body = res.output_text.trim();
+
+  /* ② 本文だけで OK / NG を判定 */
+  const ok = /^OK/i.test(body);
+
+  /* ③ 表示用の answer は出典を加えて組み立て */
   const answer = citationBlocks.length
-    ? `${res.output_text.trim()}
+    ? `${body}
 
 ---
 
@@ -58,10 +66,7 @@ export async function factCheck(statement: string): Promise<CheckResult> {
 ${citationBlocks.join("\n\n")}
 
 </details>`
-    : res.output_text;
+    : body;
 
-  /* ───────── 判定 ───────── */
-  const ok = /^OK/i.test(answer);
-
-  return { ok, answer };
+  return { ok, answer, citations: citationBlocks };
 } 
