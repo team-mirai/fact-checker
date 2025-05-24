@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
+import { serve } from '@hono/node-server'
 import { factCheck } from './lib/fact-check'
 // import { notifySlack } from './lib/slack'
 import { TwitterApi } from 'twitter-api-v2'
-// import { verifyRequestSignature } from 'hono-slack-verify'
+
 
 /* ------------------------------------------------------------------ */
 /*  Hono ルーティング定義                                             */
@@ -30,18 +31,29 @@ app.get('/', (c) => c.text('Hello Hono!'))
 
 // 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)
 app.get('/cron/fetch', async (c) => {
-  // keyword で最近 50 件取得
-  const res = await twitter.v2.search('チームみらい', { max_results: 10 });
-  console.log(res.tweets);
-  // res.data は 1 ページぶんだけ
+  const query =
+    '("チームみらい" OR "安野たかひろ") -is:retweet -is:quote -is:reply -"RT @" lang:ja';
+
+  const res = await twitter.v2.search(query, { max_results: 10 });
+
   for (const tweet of res.tweets ?? []) {
     const check = await factCheck(tweet.text);
-    if (!check.ok) {
-      // await notifySlack(check.diffSummary!, tweet.text)
-    }
+
+    /* ↓ 追加: 判定結果と全文をコンソールに出力 */
+    const label = check.ok ? '✅ OK' : '❌ NG';
+    console.log('────────────────────────────────');
+    console.log(`${label} tweetId=${tweet.id}`);
+    console.log('> ', tweet.text.replace(/\n/g, ' '));
+    console.log(check.answer);           // ← ここに詳細（全文＋出典）が出る
+    console.log('────────────────────────────────\n');
+
+    /* NG だった場合に Slack 通知したいならここで呼ぶ */
+    // if (!check.ok) await notifySlack(check, tweet.text);
   }
-  return c.json({ ok: true })
+
+  return c.json({ ok: true });
 })
+
 
 // // 2. Slack interactive endpoint
 // app.post('/slack/actions', verifyRequestSignature(), async (c) => {
@@ -79,4 +91,10 @@ app.get('/cron/fetch', async (c) => {
 
 
 /* 型互換のために一応 export も残しておく */
-export default app
+
+
+export default {
+  fetch: app.fetch,
+  port: Number(process.env.PORT) || 8080,
+  hostname: '0.0.0.0',
+};
