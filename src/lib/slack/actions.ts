@@ -7,6 +7,7 @@ slackApp.action("approve_and_post", async ({ ack, body, client }) => {
 	await ack();
 	try {
 		const action = (body as any).actions?.[0];
+		console.log(action.value);
 		if (!action) throw new Error("No action found");
 
 		const { originalTweet, factCheckResult } = JSON.parse(

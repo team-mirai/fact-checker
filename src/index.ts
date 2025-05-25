@@ -15,7 +15,7 @@ app.get("/", (c) => c.text("Hello Hono!"));
 /* ------------------------------------------------------------------ */
 /*  共通: ツイート本文のファクトチェック＆通知処理                    */
 /* ------------------------------------------------------------------ */
-async function checkAndNotify(tweetText: string, tweetUrl?: string) {
+async function checkAndNotify(tweetText: string) {
 	const check = await factCheck(tweetText);
 
 	const label = check.ok ? "✅ OK" : "❌ NG";
@@ -27,7 +27,7 @@ async function checkAndNotify(tweetText: string, tweetUrl?: string) {
 
 	if (!check.ok) {
 		// NG のときだけ即 Slack 通知
-		await notifySlack(check.answer, tweetText, tweetUrl);
+		await notifySlack(check.answer, tweetText);
 		return { notified: true, check };
 	}
 
@@ -41,9 +41,8 @@ async function checkAndNotify(tweetText: string, tweetUrl?: string) {
 app.get("/test/slack", async (c) => {
 	try {
 		const testTweet = "チームみらいはエンジニアチームを作りません｡";
-		const tweetUrl = "https://twitter.com/i/status/1234567891";
 
-		const { notified, check } = await checkAndNotify(testTweet, tweetUrl);
+		const { notified, check } = await checkAndNotify(testTweet);
 
 		// NG が無かったらここで OK 通知を 1 回だけ送る
 		if (!notified) {
