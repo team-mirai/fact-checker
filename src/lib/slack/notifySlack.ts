@@ -42,7 +42,7 @@ export async function notifySlack(
 		originalTweet: originalTweet.slice(0, 500), // 長すぎる場合は切る
 		factCheckResult: `*結果:*\n${factCheckResult
 			.split("\n") // 行単位に分割
-			.slice(0, 3) // 先頭 3 行を取得
+			.slice(0, 4) // 先頭 3 行を取得
 			.join("\n")}`,
 	};
 
@@ -62,13 +62,6 @@ export async function notifySlack(
 			// 	action_id: "edit_and_post",
 			// 	value: JSON.stringify(buttonData),
 			// },
-			{
-				type: "button",
-				text: { type: "plain_text", text: "❌ 却下" },
-				style: "danger",
-				action_id: "reject",
-				value: JSON.stringify(buttonData),
-			},
 		],
 	});
 

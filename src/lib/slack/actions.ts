@@ -1,36 +1,58 @@
+// src/slack/actions/approve_and_post.ts
+import { BlockAction, ButtonAction } from "@slack/bolt";
 import { slackApp } from "./client";
-import { twitter } from "../twitter";
-//
-// ✅ 承認して X 投稿
-//
-slackApp.action("approve_and_post", async ({ ack, body, client }) => {
-	await ack();
-	try {
-		const action = (body as any).actions?.[0];
-		console.log(action.value);
-		if (!action) throw new Error("No action found");
+import { twitter } from "../twitter"; // ← 今はコメントアウトのまま
 
-		const { originalTweet, factCheckResult } = JSON.parse(
-			action.value as string,
-		);
+// ボタンに詰め込む JSON は 2 000 byte 以下という Slack の制限がある
+// https://docs.slack.dev/reference/block-kit/block-elements/button-element
+type ButtonValue = {
+	original: string; // 200 字以内に切り詰めておく
+	fact: string; // 1 行目だけなら 200 byte も行かない
+};
 
+slackApp.action<BlockAction<ButtonAction>>(
+	"approve_and_post",
+	async ({ ack, action, body, client, logger }) => {
+		/* 1. 3 秒以内に ACK */
+		await ack();
+
+		/* 2. ボタン value を安全にパース */
+		if (!action.value) {
+			logger.error("action.value is undefined");
+			return;
+		}
+		let payload: ButtonValue;
+		try {
+			payload = JSON.parse(action.value);
+		} catch (e) {
+			logger.error("action.value is not valid JSON", e);
+			return;
+		}
+
+		/* 3. 投稿する文面を組み立て */
 		const status = [
 			"✅ ファクトチェック結果",
 			"",
-			originalTweet.length > 200
-				? `${originalTweet.slice(0, 200)}…`
-				: originalTweet,
+			payload.original,
 			"",
 			"—– 誤りの指摘 —–",
-			factCheckResult.split("\n")[0],
+			payload.fact,
 		].join("\n");
 
 		// await twitter.v2.tweet(status);
 
-		const channel = (body as any).channel?.id || process.env.SLACK_CHANNEL_ID;
-		const ts = (body as any).message?.ts;
-		if (!channel || !ts) throw new Error("Missing channel or timestamp");
+		/* 4. 更新対象メッセージの特定
+			 Block Action のペイロードでは channel/ts は
+			 body.container.channel_id / body.container.message_ts に入る */
+		// 例ペイロード: https://github.com/slackapi/java-slack-sdk/issues/1200#issuecomment-1683304512
+		const channel = body.container?.channel_id;
+		const ts = body.container?.message_ts;
+		if (!channel || !ts) {
+			logger.error("channel_id or message_ts not found in container");
+			return;
+		}
 
+		/* 5. メッセージを更新 */
 		await client.chat.update({
 			channel,
 			ts,
@@ -52,65 +74,5 @@ slackApp.action("approve_and_post", async ({ ack, body, client }) => {
 				},
 			],
 		});
-	} catch (error) {
-		console.error("Error handling approve_and_post:", error);
-	}
-});
-
-//
-// 📝 編集して X 投稿
-//
-slackApp.action("edit_and_post", async ({ ack, body, client }) => {
-	await ack();
-	try {
-		const channel = (body as any).channel?.id || process.env.SLACK_CHANNEL_ID;
-		const ts = (body as any).message?.ts;
-		if (!channel || !ts) throw new Error("Missing channel or timestamp");
-
-		await client.chat.update({
-			channel,
-			ts,
-			text: "✏️ 編集機能",
-			blocks: [
-				{
-					type: "section",
-					text: {
-						type: "mrkdwn",
-						text: ":pencil2: 編集機能は現在開発中です。次期アップデートをお待ちください。",
-					},
-				},
-			],
-		});
-	} catch (error) {
-		console.error("Error handling edit_and_post:", error);
-	}
-});
-
-//
-// ❌ 却下
-//
-slackApp.action("reject", async ({ ack, body, client }) => {
-	await ack();
-	try {
-		const channel = (body as any).channel?.id || process.env.SLACK_CHANNEL_ID;
-		const ts = (body as any).message?.ts;
-		if (!channel || !ts) throw new Error("Missing channel or timestamp");
-
-		await client.chat.update({
-			channel,
-			ts,
-			text: "❌ 却下されました",
-			blocks: [
-				{
-					type: "section",
-					text: {
-						type: "mrkdwn",
-						text: ":x: このファクトチェック要請は却下されました。",
-					},
-				},
-			],
-		});
-	} catch (error) {
-		console.error("Error handling reject:", error);
-	}
-});
+	},
+);
