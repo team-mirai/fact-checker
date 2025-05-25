@@ -80,8 +80,8 @@ OK  ←ステップ 0 で終了
 	/* ① まず本文だけをトリムして保持 */
 	const body = res.output_text.trim();
 
-	/* ② 本文だけで OK / NG を判定 */
-	const ok = /^OK/i.test(body);
+	const ng = /^NG/i.test(body);
+	const ok = !ng;
 
 	/* ③ 表示用の answer は出典を加えて組み立て */
 	const answer = citationBlocks.length
