@@ -1,5 +1,5 @@
 import { slackApp } from "./client";
-
+import { twitter } from "../twitter";
 //
 // ✅ 承認して X 投稿
 //
@@ -24,7 +24,6 @@ slackApp.action("approve_and_post", async ({ ack, body, client }) => {
 			factCheckResult.split("\n")[0],
 		].join("\n");
 
-		// TODO: X API で投稿
 		// await twitter.v2.tweet(status);
 
 		const channel = (body as any).channel?.id || process.env.SLACK_CHANNEL_ID;

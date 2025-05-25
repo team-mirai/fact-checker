@@ -2,32 +2,38 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { factCheck } from "./lib/fact-check";
 import { notifySlack, slackApp } from "./lib/slack";
-import { TwitterApi } from "twitter-api-v2";
 import { sendSlackMessage } from "./lib/slack/sendSlackMessage";
+import { twitter } from "./lib/twitter";
 
 /* ------------------------------------------------------------------ */
 /*  Hono ルーティング定義                                             */
 /* ------------------------------------------------------------------ */
 const app = new Hono();
 
-const haveOAuth1 =
-	process.env.X_APP_KEY &&
-	process.env.X_APP_SECRET &&
-	process.env.X_ACCESS_TOKEN &&
-	process.env.X_ACCESS_SECRET;
-
-const twitter = haveOAuth1
-	? /* 1) OAuth1.0a（読み書き両方） */
-		new TwitterApi({
-			appKey: process.env.X_APP_KEY!,
-			appSecret: process.env.X_APP_SECRET!,
-			accessToken: process.env.X_ACCESS_TOKEN!,
-			accessSecret: process.env.X_ACCESS_SECRET!,
-		})
-	: /* 2) OAuth2 Bearer（読み取り専用） */
-		new TwitterApi(process.env.X_BEARER_TOKEN!);
-
 app.get("/", (c) => c.text("Hello Hono!"));
+
+/* ------------------------------------------------------------------ */
+/*  共通: ツイート本文のファクトチェック＆通知処理                    */
+/* ------------------------------------------------------------------ */
+async function checkAndNotify(tweetText: string, tweetUrl?: string) {
+	const check = await factCheck(tweetText);
+
+	const label = check.ok ? "✅ OK" : "❌ NG";
+	console.log("────────────────────────────────");
+	console.log(label);
+	console.log("> ", tweetText.replace(/\n/g, " "));
+	console.log(check.answer);
+	console.log("────────────────────────────────\n");
+
+	if (!check.ok) {
+		// NG のときだけ即 Slack 通知
+		await notifySlack(check.answer, tweetText, tweetUrl);
+		return { notified: true, check };
+	}
+
+	// OK の場合はここでは何もしない
+	return { notified: false, check };
+}
 
 // Slack通知テスト用エンドポイント
 // FYI localの動作確認用で一旦設置
@@ -36,19 +42,22 @@ app.get("/test/slack", async (c) => {
 	try {
 		const testTweet = "チームみらいはエンジニアチームを作ります。";
 		const tweetUrl = "https://twitter.com/i/status/1234567891";
-		// ① factCheck だけはきちんと待機
-		const check = await factCheck(testTweet);
 
-		// ② 返却用レスポンスを即時生成
-		const responseBody = {
+		const { notified, check } = await checkAndNotify(testTweet, tweetUrl);
+
+		// NG が無かったらここで OK 通知を 1 回だけ送る
+		if (!notified) {
+			await sendSlackMessage({
+				text: "✅ ファクトチェックが必要なツイートはありませんでした",
+			});
+		}
+
+		return c.json({
 			ok: true,
-			message: `Slack通知（${check.ok ? "OK" : "NG"}）を送信しました`,
-		};
-
-		notifySlack(check.answer, testTweet, tweetUrl);
-
-		// ④ クライアントへ即レスポンス
-		return c.json(responseBody);
+			message: notified
+				? `Slack通知（${check.ok ? "OK" : "NG"}）を送信しました`
+				: "ファクトチェックが必要なツイートはありませんでした",
+		});
 	} catch (error) {
 		console.error("テスト通知エラー:", error);
 		return c.json({ ok: false, error: String(error) }, 500);
@@ -59,40 +68,27 @@ app.get("/test/slack", async (c) => {
 /* 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)  */
 /* ------------------------------------------------------------ */
 app.get("/cron/fetch", async (c) => {
-	const query =
-		'("チームみらい" OR "安野たかひろ") -is:retweet -is:quote -is:reply -"RT @" lang:ja';
+	const query = '("チームみらい" OR "安野たかひろ") -is:retweet';
 
+	// Twitter 検索
 	const res = await twitter.v2.search(query, { max_results: 10 });
 
-	/* 👇 追加: NG ツイートが存在したかどうかを記録するフラグ */
-	let hasNg = false;
+	// ───────────────────────────────────────────
+	// 並列でファクトチェック & NG 通知を実行
+	// ───────────────────────────────────────────
+	const results = await Promise.all(
+		(res.tweets ?? []).map((t) => checkAndNotify(t.text)),
+	);
+	const hasNg = results.some((r) => r.notified);
 
-	for (const tweet of res.tweets ?? []) {
-		const check = await factCheck(tweet.text);
-
-		/* ↓ 追加: 判定結果と全文をコンソールに出力 */
-		const label = check.ok ? "✅ OK" : "❌ NG";
-		console.log("────────────────────────────────");
-		console.log(`${label} tweetId=${tweet.id}`);
-		console.log("> ", tweet.text.replace(/\n/g, " "));
-		console.log(check.answer); // ← ここに詳細（全文＋出典）が出る
-		console.log("────────────────────────────────\n");
-
-		if (!check.ok) {
-			/* NG が出たら Slack へ通知 */
-			hasNg = true;
-			await notifySlack(check.answer, tweet.text);
-		}
-	}
-
+	// NG が 1 件も無かったら OK 通知を 1 回だけ送信
 	if (!hasNg) {
-		// NG が 1 件も無かったときのサマリ通知
 		await sendSlackMessage({
 			text: "✅ ファクトチェックが必要なツイートはありませんでした",
 		});
 	}
 
-	return c.json({ ok: true });
+	return c.json({ ok: true, hasNg });
 });
 
 // 2. Slack interactive endpoint
