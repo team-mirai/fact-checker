@@ -43,7 +43,7 @@ app.get("/test/slack", async (c) => {
 	try {
 		const testTweet = "チームみらいはエンジニアチームを作りません｡";
 		const testTweetUrl =
-			"https://x.com/teammirai_eng/status/1742000000000000000";
+			"https://x.com/idobata_ai/status/1926171130294939673";
 
 		const { notified, check } = await checkAndNotify(testTweet, testTweetUrl);
 
