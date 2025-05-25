@@ -91,14 +91,40 @@ app.get("/cron/fetch", async (c) => {
 	return c.json({ ok: true, hasNg });
 });
 
-// 2. Slack interactive endpoint
+/* ---------------- Slack Events 受信 ---------------- */
+app.post("/slack/events", async (c) => {
+	try {
+		const body = await c.req.json();
+
+		// URL Verification
+		if (body.type === "url_verification") {
+			return c.json({ challenge: body.challenge });
+		}
+
+		// Bolt へは body と ack を渡す
+		await slackApp.processEvent({
+			body,
+			ack: async () => {}, // 即時 ack
+		});
+
+		// HTTP レスポンスは単に 200 を返す
+		return c.json({});
+	} catch (error) {
+		console.error("Error handling Slack event:", error);
+		return c.json({ error: "Failed to process Slack event" }, 500);
+	}
+});
+
+/* 2. Slack interactive endpoint ---------------------------------- */
 app.post("/slack/actions", async (c) => {
 	try {
 		const payload = JSON.parse(c.req.param("payload") as string);
 		if (payload.type !== "block_actions") return c.json({});
 
-		// Use the slackApp's processEvent handler to delegate to our action handlers
-		await slackApp.processEvent(payload);
+		await slackApp.processEvent({
+			body: payload,
+			ack: async () => {}, // interactive も同様に ack
+		});
 		return c.json({});
 	} catch (error) {
 		console.error("Error handling Slack action:", error);

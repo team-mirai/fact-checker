@@ -1,56 +1,96 @@
 import type { KnownBlock, SectionBlock } from "@slack/types";
-import { slack } from "./client";
 import { sendSlackMessage } from "./sendSlackMessage";
 
 const MAX_SLACK_TEXT = 1500;
+const MAX_BUTTON_BYTES = 2000;
+const encoder = new TextEncoder();
 
-function truncate(text: string, max = MAX_SLACK_TEXT) {
-	return text.length > max ? text.slice(0, max - 3) + "..." : text;
+/**
+ * UTF‑8 byte‑safe truncate helper.
+ * Ensures the resulting string is ≤ maxBytes.
+ * If truncated, appends "…".
+ */
+function truncateByBytes(text: string, maxBytes: number): string {
+	if (encoder.encode(text).length <= maxBytes) return text;
+
+	// Binary search for the largest prefix that fits.
+	let low = 0;
+	let high = text.length;
+	while (low < high) {
+		const mid = Math.ceil((low + high) / 2);
+		const slice = text.slice(0, mid);
+		if (encoder.encode(slice).length > maxBytes - 3) {
+			high = mid - 1;
+		} else {
+			low = mid;
+		}
+	}
+	return text.slice(0, low) + "…";
 }
 
-function truncateForButtonValue(obj: {
+/** Simple char‑count truncate (Slack block text limit ≒ 3000) */
+function truncate(text: string, max = MAX_SLACK_TEXT): string {
+	return text.length > max ? text.slice(0, max - 1) + "…" : text;
+}
+
+interface ButtonPayload {
 	originalTweet: string;
 	factCheckResult: string;
-}) {
-	// 各要素を短縮してからJSON化
-	return JSON.stringify({
-		originalTweet: truncate(obj.originalTweet, 800),
-		factCheckResult: truncate(obj.factCheckResult, 800),
-	});
 }
 
 /**
- * ファクトチェック結果を Slack に送信する
+ * Build a button payload guaranteed to be ≤ 2 000 bytes.
+ * If we still overflow, factCheckResult gets an extra cut.
+ */
+function buildButtonValue(payload: ButtonPayload): string {
+	const rough: ButtonPayload = {
+		originalTweet: truncateByBytes(payload.originalTweet, 900),
+		factCheckResult: truncateByBytes(payload.factCheckResult, 900),
+	};
+
+	let json = JSON.stringify(rough);
+	if (encoder.encode(json).length > MAX_BUTTON_BYTES) {
+		const head = { originalTweet: rough.originalTweet, factCheckResult: "" };
+		const headBytes = encoder.encode(JSON.stringify(head)).length;
+		const remain = MAX_BUTTON_BYTES - headBytes - 6; // margin
+		rough.factCheckResult = truncateByBytes(rough.factCheckResult, remain);
+		json = JSON.stringify(rough);
+	}
+
+	return json;
+}
+
+/**
+ * Send a fact‑check notification to Slack.
  */
 export async function notifySlack(
 	factCheckResult: string,
 	originalTweet: string,
 	tweetUrl?: string,
 ) {
-	const isOk = /^OK/i.test(factCheckResult);
+	const isOk = /^OK\b/i.test(factCheckResult);
+
+	// --- block fragments ----------------------------------------------------
+	const factCheckSummary = factCheckResult.split("\n")[0];
 	const truncatedTweet =
 		originalTweet.length > 180
-			? `${originalTweet.slice(0, 180)}…`
+			? originalTweet.slice(0, 180) + "…"
 			: originalTweet;
 	const detectionTime = new Date().toLocaleString("ja-JP", {
 		timeZone: "Asia/Tokyo",
 	});
 
-	// --- ブロック生成 ---------------------------------------------------------
-	const factCheckSummary = factCheckResult.split("\n")[0];
-
-	// <details> 内の出典抽出
-	let citationText = "";
-	const m = factCheckResult.match(
+	/** Extract citation inside <details> ... </details> */
+	const citationMatch = factCheckResult.match(
 		/<details>[\s\S]*?<summary>[\s\S]*?<\/summary>([\s\S]*?)<\/details>/i,
 	);
-	if (m) {
-		citationText = m[1]
-			.trim()
-			.replace(/\n\s*-\s*\*\*([^*]+)\*\*\s*\n\s*>\s*(.+)/g, "\n• *$1*\n> $2");
-	}
+	const citationText = citationMatch
+		? citationMatch[1]
+				.trim()
+				.replace(/\n\s*-\s*\*\*([^*]+)\*\*\s*\n\s*>\s*(.+)/g, "\n• *$1*\n> $2")
+		: "";
 
-	// details タグと --- 区切りを除去
+	// Strip <details> and horizontal rules from body for the "details" section
 	const factCheckDetails = factCheckResult
 		.replace(/<details>[\s\S]*?<\/details>/gi, "")
 		.replace(/---+\s*[\r\n]/g, "")
@@ -59,9 +99,9 @@ export async function notifySlack(
 		.join("\n")
 		.trim();
 
+	// --- blocks -------------------------------------------------------------
 	const blocks: KnownBlock[] = [];
 
-	// 1) ヘッダー -------------------------------------------------------------
 	blocks.push({
 		type: "header",
 		text: {
@@ -72,7 +112,6 @@ export async function notifySlack(
 		},
 	});
 
-	// 2) 検証サマリ ----------------------------------------------------------
 	blocks.push({
 		type: "context",
 		elements: [
@@ -85,7 +124,6 @@ export async function notifySlack(
 		],
 	});
 
-	// 3) 検出ツイート --------------------------------------------------------
 	const tweetSection: SectionBlock = {
 		type: "section",
 		text: {
@@ -103,16 +141,16 @@ export async function notifySlack(
 	}
 	blocks.push(tweetSection);
 
-	// 4) ファクトチェック結果 -------------------------------------------------
 	blocks.push({
 		type: "section",
 		text: {
 			type: "mrkdwn",
-			text: `*ファクトチェック結果:*\n${isOk ? "✅" : "❌"} ${truncate(factCheckSummary)}`,
+			text: `*ファクトチェック結果:*\n${isOk ? "✅" : "❌"} ${truncate(
+				factCheckSummary,
+			)}`,
 		},
 	});
 
-	// 5) 詳細情報 ------------------------------------------------------------
 	if (factCheckDetails) {
 		blocks.push({
 			type: "section",
@@ -120,34 +158,30 @@ export async function notifySlack(
 		});
 	}
 
-	// 6) 出典情報 ------------------------------------------------------------
 	if (citationText) {
 		blocks.push({
 			type: "section",
 			text: { type: "mrkdwn", text: "📚 *出典情報* (マニフェスト抜粋)" },
 		});
 
-		const mm = citationText.match(/\*\*([^*]+)\*\*\s*>\s*(.+)/m);
-		if (mm) {
+		const firstCitation = citationText.match(/\*\*([^*]+)\*\*\s*>\s*(.+)/m);
+		if (firstCitation) {
 			blocks.push({
 				type: "section",
 				text: {
 					type: "mrkdwn",
-					text: `・*${truncate(mm[1].trim())}*\n> ${truncate(mm[2].trim())}`,
+					text: `・*${truncate(firstCitation[1].trim())}*\n> ${truncate(
+						firstCitation[2].trim(),
+					)}`,
 				},
 			});
 		}
 	}
 
-	// 7) 区切り線 ------------------------------------------------------------
 	blocks.push({ type: "divider" });
 
-	// 8) アクション（NG の時だけ） ------------------------------------------
 	if (!isOk) {
-		const buttonValue = truncateForButtonValue({
-			originalTweet,
-			factCheckResult,
-		});
+		const buttonValue = buildButtonValue({ originalTweet, factCheckResult });
 		blocks.push({
 			type: "actions",
 			elements: [
@@ -175,18 +209,16 @@ export async function notifySlack(
 		});
 	}
 
-	// 9) フッター ------------------------------------------------------------
 	blocks.push({
 		type: "context",
 		elements: [
 			{
 				type: "mrkdwn",
-				text: `検出時刻: ${truncate(detectionTime)} | 検索キーワード: チームみらい`,
+				text: `検出時刻: ${detectionTime} | 検索キーワード: チームみらい`,
 			},
 		],
 	});
 
-	// --- 送信 ---------------------------------------------------------------
 	await sendSlackMessage({
 		text: isOk
 			? "✅ ファクトチェック完了（問題なし）"
