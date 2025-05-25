@@ -4,6 +4,7 @@ import { factCheck } from "./lib/fact-check";
 import { notifySlack, slackApp } from "./lib/slack";
 import { sendSlackMessage } from "./lib/slack/sendSlackMessage";
 import { twitter } from "./lib/twitter";
+import { verifyCron } from "./middlewares/verify-cron";
 
 /* ------------------------------------------------------------------ */
 /*  Hono ルーティング定義                                             */
@@ -38,35 +39,35 @@ async function checkAndNotify(tweetText: string) {
 // Slack通知テスト用エンドポイント
 // FYI localの動作確認用で一旦設置
 
-app.get("/test/slack", async (c) => {
-	try {
-		const testTweet = "チームみらいはエンジニアチームを作りません｡";
+// app.get("/test/slack", async (c) => {
+// 	try {
+// 		const testTweet = "チームみらいはエンジニアチームを作りません｡";
 
-		const { notified, check } = await checkAndNotify(testTweet);
+// 		const { notified, check } = await checkAndNotify(testTweet);
 
-		// NG が無かったらここで OK 通知を 1 回だけ送る
-		if (!notified) {
-			await sendSlackMessage({
-				text: "✅ ファクトチェックが必要なツイートはありませんでした",
-			});
-		}
+// 		// NG が無かったらここで OK 通知を 1 回だけ送る
+// 		if (!notified) {
+// 			await sendSlackMessage({
+// 				text: "✅ ファクトチェックが必要なツイートはありませんでした",
+// 			});
+// 		}
 
-		return c.json({
-			ok: true,
-			message: notified
-				? `Slack通知（${check.ok ? "OK" : "NG"}）を送信しました`
-				: "ファクトチェックが必要なツイートはありませんでした",
-		});
-	} catch (error) {
-		console.error("テスト通知エラー:", error);
-		return c.json({ ok: false, error: String(error) }, 500);
-	}
-});
+// 		return c.json({
+// 			ok: true,
+// 			message: notified
+// 				? `Slack通知（${check.ok ? "OK" : "NG"}）を送信しました`
+// 				: "ファクトチェックが必要なツイートはありませんでした",
+// 		});
+// 	} catch (error) {
+// 		console.error("テスト通知エラー:", error);
+// 		return c.json({ ok: false, error: String(error) }, 500);
+// 	}
+// });
 
 /* ------------------------------------------------------------ */
 /* 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)  */
 /* ------------------------------------------------------------ */
-app.get("/cron/fetch", async (c) => {
+app.get("/cron/fetch", verifyCron, async (c) => {
 	const query = '("チームみらい" OR "安野たかひろ") -is:retweet';
 
 	// Twitter 検索
