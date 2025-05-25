@@ -40,7 +40,7 @@ async function checkAndNotify(tweetText: string, tweetUrl?: string) {
 
 app.get("/test/slack", async (c) => {
 	try {
-		const testTweet = "チームみらいはエンジニアチームを作ります。";
+		const testTweet = "チームみらいはエンジニアチームを作りません｡";
 		const tweetUrl = "https://twitter.com/i/status/1234567891";
 
 		const { notified, check } = await checkAndNotify(testTweet, tweetUrl);
