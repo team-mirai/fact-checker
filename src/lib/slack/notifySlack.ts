@@ -1,5 +1,6 @@
 import type { KnownBlock, SectionBlock } from "@slack/types";
 import { slack } from "./client";
+import { sendSlackMessage } from "./sendSlackMessage";
 
 const MAX_SLACK_TEXT = 1500;
 
@@ -186,8 +187,7 @@ export async function notifySlack(
 	});
 
 	// --- 送信 ---------------------------------------------------------------
-	await slack.chat.postMessage({
-		channel: process.env.SLACK_CHANNEL_ID!,
+	await sendSlackMessage({
 		text: isOk
 			? "✅ ファクトチェック完了（問題なし）"
 			: "🔍 ファクトチェック要請 [要確認]",

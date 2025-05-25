@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { factCheck } from "./lib/fact-check";
 import { notifySlack, slackApp } from "./lib/slack";
 import { TwitterApi } from "twitter-api-v2";
+import { sendSlackMessage } from "./lib/slack/sendSlackMessage";
 
 /* ------------------------------------------------------------------ */
 /*  Hono ルーティング定義                                             */
@@ -33,7 +34,7 @@ app.get("/", (c) => c.text("Hello Hono!"));
 
 app.get("/test/slack", async (c) => {
 	try {
-		const testTweet = "チームみらいは 外国人参政権に賛成しています。";
+		const testTweet = "チームみらいはエンジニアチームを作ります。";
 		const tweetUrl = "https://twitter.com/i/status/1234567891";
 		// ① factCheck だけはきちんと待機
 		const check = await factCheck(testTweet);
@@ -54,12 +55,17 @@ app.get("/test/slack", async (c) => {
 	}
 });
 
-// 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)
+/* ------------------------------------------------------------ */
+/* 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)  */
+/* ------------------------------------------------------------ */
 app.get("/cron/fetch", async (c) => {
 	const query =
 		'("チームみらい" OR "安野たかひろ") -is:retweet -is:quote -is:reply -"RT @" lang:ja';
 
 	const res = await twitter.v2.search(query, { max_results: 10 });
+
+	/* 👇 追加: NG ツイートが存在したかどうかを記録するフラグ */
+	let hasNg = false;
 
 	for (const tweet of res.tweets ?? []) {
 		const check = await factCheck(tweet.text);
@@ -72,8 +78,18 @@ app.get("/cron/fetch", async (c) => {
 		console.log(check.answer); // ← ここに詳細（全文＋出典）が出る
 		console.log("────────────────────────────────\n");
 
-		/* NG だった場合に Slack 通知したいならここで呼ぶ */
-		// if (!check.ok) await notifySlack(check, tweet.text);
+		if (!check.ok) {
+			/* NG が出たら Slack へ通知 */
+			hasNg = true;
+			await notifySlack(check.answer, tweet.text);
+		}
+	}
+
+	if (!hasNg) {
+		// NG が 1 件も無かったときのサマリ通知
+		await sendSlackMessage({
+			text: "✅ ファクトチェックが必要なツイートはありませんでした",
+		});
 	}
 
 	return c.json({ ok: true });
