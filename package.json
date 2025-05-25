@@ -1,25 +1,26 @@
 {
-	"name": "x-fact-check",
-	"scripts": {
-		"dev": "bun run --hot src/index.ts",
-		"fact-check": "bun run scripts/fact-check.cli.ts",
-		"format": "biome format --write .",
-		"lint": "biome lint --write ."
-	},
-	"dependencies": {
-		"@hono/node-server": "^1.14.2",
-		"@slack/bolt": "^4.4.0",
-		"@slack/events-api": "^3.0.1",
-		"@slack/web-api": "^7.9.2",
-		"openai": "^4.0.0",
-		"hono": "^4.7.10",
-		"twitter-api-v2": "^1.23.2"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
-		"@types/bun": "latest",
-		"dotenv": "^16.5.0",
-		"fast-glob": "^3.3.3",
-		"tsx": "^4.19.4"
-	}
+  "name": "x-fact-check",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "fact-check": "bun run scripts/fact-check.cli.ts",
+    "format": "biome format --write .",
+    "lint": "biome lint --write ."
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.2",
+    "@slack/bolt": "^4.4.0",
+    "@slack/events-api": "^3.0.1",
+    "@slack/web-api": "^7.9.2",
+    "openai": "^4.0.0",
+    "hono": "^4.7.10",
+    "twitter-api-v2": "^1.23.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/bun": "latest",
+    "dotenv": "^16.5.0",
+    "fast-glob": "^3.3.3",
+		"lefthook": "^1.11.13",
+    "tsx": "^4.19.4"
+  }
 }
