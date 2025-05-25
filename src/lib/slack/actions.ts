@@ -2,13 +2,7 @@
 import { BlockAction, ButtonAction } from "@slack/bolt";
 import { slackApp } from "./client";
 import { twitter } from "../twitter"; // ← 今はコメントアウトのまま
-
-// ボタンに詰め込む JSON は 2 000 byte 以下という Slack の制限がある
-// https://docs.slack.dev/reference/block-kit/block-elements/button-element
-type ButtonValue = {
-	originalTweet: string; // 200 字以内に切り詰めておく
-	factCheckResult: string; // 1 行目だけなら 200 byte も行かない
-};
+import { ButtonValue } from "../../types";
 
 slackApp.action<BlockAction<ButtonAction>>(
 	"approve_and_post",
@@ -40,7 +34,7 @@ slackApp.action<BlockAction<ButtonAction>>(
 			payload.factCheckResult,
 		].join("\n");
 
-		// await twitter.v2.tweet(status);
+		await twitter.v2.tweet(status);
 		const channel = body.container?.channel_id;
 		const ts = body.container?.message_ts;
 		if (!channel || !ts) {

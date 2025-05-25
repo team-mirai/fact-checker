@@ -115,28 +115,27 @@ app.post("/slack/events", async (c) => {
 });
 
 app.post("/slack/actions", async (c) => {
-  // ① URL-encoded フォームを取得
-  const form = await c.req.formData();
-  const raw  = form.get("payload");
+	// ① URL-encoded フォームを取得
+	const form = await c.req.formData();
+	const raw = form.get("payload");
 
-  // payload が無ければ 400
-  if (typeof raw !== "string") {
-    return c.json({ error: "payload missing" }, 400);
-  }
+	// payload が無ければ 400
+	if (typeof raw !== "string") {
+		return c.json({ error: "payload missing" }, 400);
+	}
 
-  // ② JSON へ変換
-  const payload = JSON.parse(raw);
+	// ② JSON へ変換
+	const payload = JSON.parse(raw);
 
-  // ③ Bolt へ委譲 — ack はレスポンスを返さず Promise<void>
-  await slackApp.processEvent({
-    body: payload,
-    ack: async () => {},   // 型：AckFn => Promise<void>
-  });
+	// ③ Bolt へ委譲 — ack はレスポンスを返さず Promise<void>
+	await slackApp.processEvent({
+		body: payload,
+		ack: async () => {}, // 型：AckFn => Promise<void>
+	});
 
-  // ④ 最後に Hono として 200 OK を返す
-  return c.json({});
+	// ④ 最後に Hono として 200 OK を返す
+	return c.json({});
 });
-
 
 /* 型互換のために一応 export も残しておく */
 

@@ -1,5 +1,6 @@
 import type { KnownBlock } from "@slack/types";
 import { sendSlackMessage } from "./sendSlackMessage";
+import { ButtonValue } from "../../types";
 
 export async function notifySlack(
 	factCheckResult: string,
@@ -38,11 +39,11 @@ export async function notifySlack(
 	];
 
 	// JSONにする前に確実に文字列化
-	const buttonData = {
+	const buttonData: ButtonValue = {
 		originalTweet: originalTweet.slice(0, 500), // 長すぎる場合は切る
 		factCheckResult: `*結果:*\n${factCheckResult
 			.split("\n") // 行単位に分割
-			.slice(0, 4) // 先頭 3 行を取得
+			.slice(0, 3) // 先頭 3 行を取得
 			.join("\n")}`,
 	};
 
