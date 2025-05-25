@@ -6,8 +6,8 @@ import { twitter } from "../twitter"; // ← 今はコメントアウトのま�
 // ボタンに詰め込む JSON は 2 000 byte 以下という Slack の制限がある
 // https://docs.slack.dev/reference/block-kit/block-elements/button-element
 type ButtonValue = {
-	original: string; // 200 字以内に切り詰めておく
-	fact: string; // 1 行目だけなら 200 byte も行かない
+	originalTweet: string; // 200 字以内に切り詰めておく
+	factCheckResult: string; // 1 行目だけなら 200 byte も行かない
 };
 
 slackApp.action<BlockAction<ButtonAction>>(
@@ -28,23 +28,19 @@ slackApp.action<BlockAction<ButtonAction>>(
 			logger.error("action.value is not valid JSON", e);
 			return;
 		}
+		console.log(payload);
 
 		/* 3. 投稿する文面を組み立て */
 		const status = [
 			"✅ ファクトチェック結果",
 			"",
-			payload.original,
+			payload.originalTweet,
 			"",
 			"—– 誤りの指摘 —–",
-			payload.fact,
+			payload.factCheckResult,
 		].join("\n");
 
 		// await twitter.v2.tweet(status);
-
-		/* 4. 更新対象メッセージの特定
-			 Block Action のペイロードでは channel/ts は
-			 body.container.channel_id / body.container.message_ts に入る */
-		// 例ペイロード: https://github.com/slackapi/java-slack-sdk/issues/1200#issuecomment-1683304512
 		const channel = body.container?.channel_id;
 		const ts = body.container?.message_ts;
 		if (!channel || !ts) {

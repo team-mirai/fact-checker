@@ -114,22 +114,29 @@ app.post("/slack/events", async (c) => {
 	}
 });
 
-/* 2. Slack interactive endpoint ---------------------------------- */
 app.post("/slack/actions", async (c) => {
-	try {
-		const payload = JSON.parse(c.req.param("payload") as string);
-		if (payload.type !== "block_actions") return c.json({});
+  // ① URL-encoded フォームを取得
+  const form = await c.req.formData();
+  const raw  = form.get("payload");
 
-		await slackApp.processEvent({
-			body: payload,
-			ack: async () => {}, // interactive も同様に ack
-		});
-		return c.json({});
-	} catch (error) {
-		console.error("Error handling Slack action:", error);
-		return c.json({ error: "Failed to process action" });
-	}
+  // payload が無ければ 400
+  if (typeof raw !== "string") {
+    return c.json({ error: "payload missing" }, 400);
+  }
+
+  // ② JSON へ変換
+  const payload = JSON.parse(raw);
+
+  // ③ Bolt へ委譲 — ack はレスポンスを返さず Promise<void>
+  await slackApp.processEvent({
+    body: payload,
+    ack: async () => {},   // 型：AckFn => Promise<void>
+  });
+
+  // ④ 最後に Hono として 200 OK を返す
+  return c.json({});
 });
+
 
 /* 型互換のために一応 export も残しておく */
 
