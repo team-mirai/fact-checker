@@ -30,6 +30,7 @@ slackApp.action<BlockAction<ButtonAction>>(
 			"",
 			payload.originalTweet,
 			"",
+			payload.originalTweetUrl,
 			"—– 誤りの指摘 —–",
 			payload.factCheckResult,
 		].join("\n");

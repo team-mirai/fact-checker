@@ -1,15 +1,28 @@
-import type { KnownBlock } from "@slack/types";
+import type { KnownBlock, SectionBlock } from "@slack/types";
 import { sendSlackMessage } from "./sendSlackMessage";
 import { ButtonValue } from "../../types";
 
 export async function notifySlack(
 	factCheckResult: string,
 	originalTweet: string,
+	tweetUrl: string,
 ) {
 	// 入力値を確実に文字列にする
 	factCheckResult = String(factCheckResult || "");
 	originalTweet = String(originalTweet || "");
-
+	const tweetSection: SectionBlock = {
+		type: "section",
+		text: {
+			type: "mrkdwn",
+			text: `*ツイート:*\n> ${originalTweet.slice(0, 200)}${originalTweet.length > 200 ? "..." : ""}`,
+		},
+		accessory: {
+			type: "button",
+			text: { type: "plain_text", text: "🔗 ツイートを表示" },
+			url: tweetUrl, // ← 直接リンク
+			action_id: "view_tweet", // 任意の ID
+		},
+	};
 	// シンプルなメッセージブロック
 	const blocks: KnownBlock[] = [
 		{
@@ -19,13 +32,7 @@ export async function notifySlack(
 				text: "🔍 要確認",
 			},
 		},
-		{
-			type: "section",
-			text: {
-				type: "mrkdwn",
-				text: `*ツイート:*\n> ${originalTweet.slice(0, 200)}${originalTweet.length > 200 ? "..." : ""}`,
-			},
-		},
+		tweetSection,
 		{
 			type: "section",
 			text: {
@@ -41,6 +48,7 @@ export async function notifySlack(
 	// JSONにする前に確実に文字列化
 	const buttonData: ButtonValue = {
 		originalTweet: originalTweet.slice(0, 500), // 長すぎる場合は切る
+		originalTweetUrl: tweetUrl,
 		factCheckResult: `*結果:*\n${factCheckResult
 			.split("\n") // 行単位に分割
 			.slice(0, 3) // 先頭 3 行を取得

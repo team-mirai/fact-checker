@@ -16,7 +16,7 @@ app.get("/", (c) => c.text("Hello Hono!"));
 /* ------------------------------------------------------------------ */
 /*  共通: ツイート本文のファクトチェック＆通知処理                    */
 /* ------------------------------------------------------------------ */
-async function checkAndNotify(tweetText: string) {
+async function checkAndNotify(tweetText: string, tweetUrl: string) {
 	const check = await factCheck(tweetText);
 
 	const label = check.ok ? "✅ OK" : "❌ NG";
@@ -28,7 +28,7 @@ async function checkAndNotify(tweetText: string) {
 
 	if (!check.ok) {
 		// NG のときだけ即 Slack 通知
-		await notifySlack(check.answer, tweetText);
+		await notifySlack(check.answer, tweetText, tweetUrl);
 		return { notified: true, check };
 	}
 
@@ -39,30 +39,32 @@ async function checkAndNotify(tweetText: string) {
 // Slack通知テスト用エンドポイント
 // FYI localの動作確認用で一旦設置
 
-// app.get("/test/slack", async (c) => {
-// 	try {
-// 		const testTweet = "チームみらいはエンジニアチームを作りません｡";
+app.get("/test/slack", async (c) => {
+	try {
+		const testTweet = "チームみらいはエンジニアチームを作りません｡";
+		const testTweetUrl =
+			"https://x.com/teammirai_eng/status/1742000000000000000";
 
-// 		const { notified, check } = await checkAndNotify(testTweet);
+		const { notified, check } = await checkAndNotify(testTweet, testTweetUrl);
 
-// 		// NG が無かったらここで OK 通知を 1 回だけ送る
-// 		if (!notified) {
-// 			await sendSlackMessage({
-// 				text: "✅ ファクトチェックが必要なツイートはありませんでした",
-// 			});
-// 		}
+		// NG が無かったらここで OK 通知を 1 回だけ送る
+		if (!notified) {
+			await sendSlackMessage({
+				text: "✅ ファクトチェックが必要なツイートはありませんでした",
+			});
+		}
 
-// 		return c.json({
-// 			ok: true,
-// 			message: notified
-// 				? `Slack通知（${check.ok ? "OK" : "NG"}）を送信しました`
-// 				: "ファクトチェックが必要なツイートはありませんでした",
-// 		});
-// 	} catch (error) {
-// 		console.error("テスト通知エラー:", error);
-// 		return c.json({ ok: false, error: String(error) }, 500);
-// 	}
-// });
+		return c.json({
+			ok: true,
+			message: notified
+				? `Slack通知（${check.ok ? "OK" : "NG"}）を送信しました`
+				: "ファクトチェックが必要なツイートはありませんでした",
+		});
+	} catch (error) {
+		console.error("テスト通知エラー:", error);
+		return c.json({ ok: false, error: String(error) }, 500);
+	}
+});
 
 /* ------------------------------------------------------------ */
 /* 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)  */
@@ -77,7 +79,10 @@ app.get("/cron/fetch", verifyCron, async (c) => {
 	// 並列でファクトチェック & NG 通知を実行
 	// ───────────────────────────────────────────
 	const results = await Promise.all(
-		(res.tweets ?? []).map((t) => checkAndNotify(t.text)),
+		(res.tweets ?? []).map((t) => {
+			const tweetUrl = `https://x.com/i/web/status/${t.id}`;
+			return checkAndNotify(t.text, tweetUrl);
+		}),
 	);
 	const hasNg = results.some((r) => r.notified);
 
