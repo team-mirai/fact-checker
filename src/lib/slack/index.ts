@@ -2,4 +2,4 @@
 import "./actions";
 
 export { slack, slackApp } from "./client";
-export { notifySlack } from "./notifySlack"; 
+export { notifySlack } from "./notifySlack";
