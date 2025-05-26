@@ -26,12 +26,14 @@ slackApp.action<BlockAction<ButtonAction>>(
 
 		/* 3. 投稿する文面を組み立て */
 		const status = [
-			"✅ ファクトチェック結果",
-			"",
-			payload.originalTweet,
-			"",
+			"ファクトチェック",
+			"----------------",
+			"【引用ツイート】",
+			`「${payload.originalTweet}」`,
 			payload.originalTweetUrl,
-			"—– 誤りの指摘 —–",
+			"----------------",
+			"【検証結果】❌️",
+			"",
 			payload.factCheckResult,
 		].join("\n");
 

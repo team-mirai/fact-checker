@@ -69,7 +69,8 @@ app.get("/test/slack", async (c) => {
 /* 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)  */
 /* ------------------------------------------------------------ */
 app.get("/cron/fetch", verifyCron, async (c) => {
-	const query = '("チームみらい" OR "安野たかひろ") -is:retweet';
+	const query =
+		'("チームみらい" OR "安野たかひろ") -is:retweet -from:idobata_ai';
 
 	// Twitter 検索
 	const res = await twitter.v2.search(query, { max_results: 10 });
