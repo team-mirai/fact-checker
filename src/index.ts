@@ -39,7 +39,7 @@ async function checkAndNotify(tweetText: string, tweetUrl: string) {
 // Slack通知テスト用エンドポイント
 // FYI localの動作確認用で一旦設置
 
-app.get("/test/slack", async (c) => {
+app.get("/test/slack", verifyCron, async (c) => {
 	try {
 		const testTweet = "チームみらいはエンジニアチームを作りません｡";
 		const testTweetUrl = "https://x.com/idobata_ai/status/1926171130294939673";
@@ -73,7 +73,7 @@ app.get("/cron/fetch", verifyCron, async (c) => {
 		'("チームみらい" OR "安野たかひろ") -is:retweet -from:idobata_ai';
 
 	// Twitter 検索
-	const res = await twitter.v2.search(query, { max_results: 10 });
+	const res = await twitter.v2.search(query, { max_results: 30 });
 
 	// ───────────────────────────────────────────
 	// 並列でファクトチェック & NG 通知を実行
