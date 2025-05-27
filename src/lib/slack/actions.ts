@@ -1,8 +1,8 @@
 // src/slack/actions/approve_and_post.ts
-import { BlockAction, ButtonAction } from "@slack/bolt";
+import type { BlockAction, ButtonAction } from "@slack/bolt";
 import { slackApp } from "./client";
 import { twitter } from "../twitter"; // ← 今はコメントアウトのまま
-import { ButtonValue } from "../../types";
+import type { ButtonValue } from "../../types";
 
 slackApp.action<BlockAction<ButtonAction>>(
 	"approve_and_post",

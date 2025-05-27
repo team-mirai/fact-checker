@@ -1,7 +1,12 @@
 import { App } from "@slack/bolt";
 import { WebClient } from "@slack/web-api";
 import { factCheck } from "../fact-check";
-export const slack = new WebClient(process.env.SLACK_BOT_TOKEN!);
+export const slack = new WebClient(
+	process.env.SLACK_BOT_TOKEN ??
+		(() => {
+			throw new Error("SLACK_BOT_TOKEN is not set");
+		})(),
+);
 
 export const slackApp = new App({
 	token: process.env.SLACK_BOT_TOKEN,
@@ -11,7 +16,7 @@ export const slackApp = new App({
 // ---------------- app_mention ハンドラ ----------------
 slackApp.event("app_mention", async ({ event, client }) => {
 	// `<@U12345678> ここが実際の本文…` となっているのでメンション部分を除去
-	const rawText = (event as any).text?.replace(/<@[^>]+>\s*/, "").trim() ?? "";
+	const rawText = event.text?.replace(/<@[^>]+>\s*/, "").trim() ?? "";
 	if (!rawText) return;
 
 	// ファクトチェック
@@ -20,8 +25,8 @@ slackApp.event("app_mention", async ({ event, client }) => {
 
 	// スレッド (thread_ts) があればそこへ、無ければ新規メッセージ
 	await client.chat.postMessage({
-		channel: (event as any).channel,
-		thread_ts: (event as any).thread_ts ?? (event as any).ts,
+		channel: event.channel,
+		thread_ts: event.thread_ts ?? event.ts,
 		text: `${label} ${check.answer}`,
 	});
 });

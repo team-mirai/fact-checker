@@ -1,15 +1,12 @@
 import type { KnownBlock, SectionBlock } from "@slack/types";
 import { sendSlackMessage } from "./sendSlackMessage";
-import { ButtonValue } from "../../types";
+import type { ButtonValue } from "../../types";
 
 export async function notifySlack(
 	factCheckResult: string,
 	originalTweet: string,
 	tweetUrl: string,
 ) {
-	// 入力値を確実に文字列にする
-	factCheckResult = String(factCheckResult || "");
-	originalTweet = String(originalTweet || "");
 	const tweetSection: SectionBlock = {
 		type: "section",
 		text: {

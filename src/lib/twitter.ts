@@ -1,18 +1,30 @@
 import { TwitterApi } from "twitter-api-v2";
 
-const haveOAuth1 =
-	process.env.X_APP_KEY &&
-	process.env.X_APP_SECRET &&
-	process.env.X_ACCESS_TOKEN &&
-	process.env.X_ACCESS_SECRET;
+function getEnv(name: string): string {
+	const value = process.env[name];
+	if (!value) throw new Error(`${name} is not set`);
+	return value;
+}
 
-export const twitter = haveOAuth1
-	? /* 1) OAuth1.0a（読み書き両方） */
-		new TwitterApi({
-			appKey: process.env.X_APP_KEY!,
-			appSecret: process.env.X_APP_SECRET!,
-			accessToken: process.env.X_ACCESS_TOKEN!,
-			accessSecret: process.env.X_ACCESS_SECRET!,
-		})
-	: /* 2) OAuth2 Bearer（読み取り専用） */
-		new TwitterApi(process.env.X_BEARER_TOKEN!);
+function createTwitterClient() {
+	const hasOAuth1 =
+		process.env.X_APP_KEY &&
+		process.env.X_APP_SECRET &&
+		process.env.X_ACCESS_TOKEN &&
+		process.env.X_ACCESS_SECRET;
+
+	if (hasOAuth1) {
+		// OAuth1.0a（読み書き両方）
+		return new TwitterApi({
+			appKey: getEnv("X_APP_KEY"),
+			appSecret: getEnv("X_APP_SECRET"),
+			accessToken: getEnv("X_ACCESS_TOKEN"),
+			accessSecret: getEnv("X_ACCESS_SECRET"),
+		});
+	}
+
+	// OAuth2 Bearer（読み取り専用）
+	return new TwitterApi(getEnv("X_BEARER_TOKEN"));
+}
+
+export const twitter = createTwitterClient();

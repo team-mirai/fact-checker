@@ -1,7 +1,11 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const vectorStoreId = process.env.VECTOR_STORE_ID!;
+const vectorStoreId =
+	process.env.VECTOR_STORE_ID ??
+	(() => {
+		throw new Error("VECTOR_STORE_ID is not set");
+	})();
 
 export interface CheckResult {
 	ok: boolean; // 事実と概ね一致?

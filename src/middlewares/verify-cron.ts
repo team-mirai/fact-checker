@@ -1,5 +1,5 @@
 // src/middlewares/verify-cron.ts
-import { Context, Next } from "hono";
+import type { Context, Next } from "hono";
 
 export const verifyCron = async (c: Context, next: Next) => {
 	const expected = Bun.env.CRON_SECRET; // Secret Manager から注入
