@@ -6,7 +6,7 @@
 
 Fact-Checkerは以下の機能を提供します：
 
-- **Twitter/X監視**: "チームみらい"や"安野たかひろ"に関する投稿を自動的に検索・監視
+- **Twitter/X監視**: 特定の話題に関する投稿を自動的に検索・監視
 - **AI powered ファクトチェック**: OpenAIのGPTモデルとベクターストアを使用して、投稿内容の真偽を判定
 - **Slack通知**: 誤った情報が検出された場合、自動的にSlackに通知を送信
 - **CLI & Web API**: コマンドラインツールとしても、Webサービスとしても利用可能
@@ -45,6 +45,7 @@ OPENAI_API_KEY="sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
 ## 2. ドキュメントをベクターストアへアップロードする
 
+ドキュメントの.mdファイルをpolicy/以下に配置し、以下を実行してください。
 ```bash
 bunx tsx scripts/upload.ts
 ```
@@ -121,7 +122,6 @@ CRON_SECRET=CRON_SECRET:latest"
 gcpの例
 ```bash
 gcloud scheduler jobs create http cron-fetch-tweets \
---location asia-northeast1 \
 --location asia-northeast1 \
 --schedule "0 9-21 * * *" \
 --time-zone "Asia/Tokyo" \
