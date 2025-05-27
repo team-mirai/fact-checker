@@ -70,7 +70,7 @@ app.get("/test/slack", verifyCron, async (c) => {
 /* ------------------------------------------------------------ */
 app.get("/cron/fetch", verifyCron, async (c) => {
 	const query =
-		'("チームみらい" OR "安野たかひろ" OR "安野貴博" OR "平りさこ" OR "平理沙子" OR "高山さとし" OR "高山聡史" OR "須田えいたろう" OR "須田英太郎") -is:retweet -from:idobata_ai';
+		'("チームみらい" OR "@team_mirai_jp" OR "安野たかひろ" OR "安野貴博" OR "@takahiroanno" OR "@annotakahiro24" OR "平りさこ" OR "平理沙子" OR "@risako_in_osaka" OR "高山さとし" OR "高山聡史" OR "@satoshi_2125" OR "須田えいたろう" OR "須田英太郎" OR "@Btaros") -is:retweet -from:idobata_ai';
 
 	// Twitter 検索
 	const res = await twitter.v2.search(query, { max_results: 30 });
