@@ -1,0 +1,47 @@
+name: Deploy to Cloud Run
+on: [push]
+
+permissions:
+  contents: read      # auth アクション推奨
+  id-token: write     # 後で WIF に変えるなら必須
+
+env:
+  REGION: asia-northeast1
+  SERVICE: x-fact-checker
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # 1) 認証（鍵 JSON を使う最短手順）
+    - uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCLOUD_SERVICE_KEY }}
+        project_id:        ${{ secrets.PROJECT_ID }}
+
+    # 2) gcloud インストール
+    - uses: google-github-actions/setup-gcloud@v2
+
+    # 3) ビルド & デプロイ
+    - name: Build + Deploy
+      run: |
+        IMAGE="$REGION-docker.pkg.dev/${{ secrets.PROJECT_ID }}/$SERVICE/app:latest"
+        gcloud builds submit --tag "$IMAGE" --quiet
+        gcloud run deploy "$SERVICE" \
+          --image "$IMAGE" \
+          --region "$REGION" \
+          --allow-unauthenticated \
+          --update-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest,\
+            X_BEARER_TOKEN=X_BEARER_TOKEN:latest,\
+            VECTOR_STORE_ID=VECTOR_STORE_ID:latest,\
+            SLACK_BOT_TOKEN=SLACK_BOT_TOKEN:latest,\
+            SLACK_SIGNING_SECRET=SLACK_SIGNING_SECRET:latest,\
+            SLACK_CHANNEL_ID=SLACK_CHANNEL_ID:latest,\
+            X_APP_KEY=X_APP_KEY:latest,\
+            X_APP_SECRET=X_APP_SECRET:latest,\
+            X_ACCESS_TOKEN=X_ACCESS_TOKEN:latest,\
+            X_ACCESS_SECRET=X_ACCESS_SECRET:latest,\
+            CRON_SECRET=CRON_SECRET:latest"
