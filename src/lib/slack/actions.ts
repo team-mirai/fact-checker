@@ -1,8 +1,23 @@
-// src/slack/actions/approve_and_post.ts
+// src/lib/slack/actions/approve_and_post.ts
 import type { BlockAction, ButtonAction } from "@slack/bolt";
 import { slackApp } from "./client";
-import { twitter } from "../twitter"; // ← 今はコメントアウトのまま
+import { twitter } from "../twitter";
 import type { ButtonValue } from "../../types";
+
+/* ↓ 追加：ユーティリティ ------------------------------------------ */
+const WORD_JOINER = "\u2060"; // U+2060（ゼロ幅ノンブレーク）で自動リンクを阻止
+
+/** 文字列中の README.md → README⁠.md へ変換して URL 解析を回避する */
+function preventReadmeAutolink(text: string) {
+	return text.replace(/README\.md/gi, `README${WORD_JOINER}.md`);
+}
+
+/** https://twitter.com/.../status/123 → 123 を抽出する */
+function extractTweetId(url: string) {
+	const m = url.match(/status\/(\d+)/);
+	return m ? m[1] : undefined;
+}
+/* --------------------------------------------------------------- */
 
 slackApp.action<BlockAction<ButtonAction>>(
 	"approve_and_post",
@@ -24,20 +39,25 @@ slackApp.action<BlockAction<ButtonAction>>(
 		}
 		console.log(payload);
 
-		/* 3. 投稿する文面を組み立て */
+		/* 3. ツイート文面を組み立て（冒頭行を簡潔に & README.md 対策） */
 		const status = [
-			"ファクトチェック",
-			"----------------",
-			"【引用ツイート】",
-			`「${payload.originalTweet}」`,
-			payload.originalTweetUrl,
-			"----------------",
-			"【検証結果】❌️",
+			"ファクトチェック結果：❌ NG",
 			"",
-			payload.factCheckResult,
+			preventReadmeAutolink(payload.factCheckResult),
 		].join("\n");
 
-		await twitter.v2.tweet(status);
+		/* 4. 引用 RT でポスト（URL でなく quote_tweet_id を使う） */
+		const quoteId = extractTweetId(payload.originalTweetUrl);
+		try {
+			await twitter.v2.tweet({
+				text: status,
+				quote_tweet_id: quoteId,
+			});
+		} catch (e) {
+			logger.error("post tweet failed", e);
+		}
+
+		/* 5. Slack メッセージを更新 */
 		const channel = body.container?.channel_id;
 		const ts = body.container?.message_ts;
 		if (!channel || !ts) {
