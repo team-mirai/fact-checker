@@ -8,8 +8,17 @@ import type { ButtonValue } from "../../types";
 const WORD_JOINER = "\u2060"; // U+2060（ゼロ幅ノンブレーク）で自動リンクを阻止
 
 /** 文字列中の README.md → README⁠.md へ変換して URL 解析を回避する */
-function preventReadmeAutolink(text: string) {
-	return text.replace(/README\.md/gi, `README${WORD_JOINER}.md`);
+function preventAutolink(text: string) {
+	// 1) README.md → README⁠.md
+	let out = text.replace(/README\.md/gi, `README${WORD_JOINER}.md`);
+
+	// 2) http / https URL のドメイン中 '.' に ZWJ を挿入してリンクを無効化
+	//    例: https://example.com → https://example⁠.com
+	out = out.replace(/\bhttps?:\/\/\S+/gi, (url) =>
+		url.replace(/\./g, `.${WORD_JOINER}`),
+	);
+
+	return out;
 }
 
 /** https://twitter.com/.../status/123 → 123 を抽出する */
@@ -43,7 +52,7 @@ slackApp.action<BlockAction<ButtonAction>>(
 		const status = [
 			"ファクトチェック結果：❌ NG",
 			"",
-			preventReadmeAutolink(payload.factCheckResult),
+			preventAutolink(payload.factCheckResult),
 		].join("\n");
 
 		/* 4. 引用 RT でポスト（URL でなく quote_tweet_id を使う） */
