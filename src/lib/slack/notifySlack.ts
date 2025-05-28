@@ -34,9 +34,9 @@ export async function notifySlack(
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*結果:*\n${factCheckResult
+				text: `${factCheckResult
 					.split("\n") // 行単位に分割
-					.slice(0, 3) // 先頭 3 行を取得
+					.slice(1, 3) // 先頭 3 行を取得
 					.join("\n")}`,
 			},
 		},
@@ -46,9 +46,9 @@ export async function notifySlack(
 	const buttonData: ButtonValue = {
 		originalTweet: originalTweet.slice(0, 500), // 長すぎる場合は切る
 		originalTweetUrl: tweetUrl,
-		factCheckResult: `*結果:*\n${factCheckResult
+		factCheckResult: `${factCheckResult
 			.split("\n") // 行単位に分割
-			.slice(0, 3) // 先頭 3 行を取得
+			.slice(1, 3) // 先頭 3 行を取得
 			.join("\n")}`,
 	};
 
