@@ -47,7 +47,7 @@ OPENAI_API_KEY="sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
 ドキュメントの.mdファイルをpolicy/以下に配置し、以下を実行してください。
 ```bash
-bunx tsx scripts/upload.ts
+bun run upload
 ```
 
 実行後、`config/vectorStore.json` が生成（更新）され、**vector store ID** が出力されます。
