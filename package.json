@@ -2,6 +2,7 @@
 	"name": "x-fact-check",
 	"scripts": {
 		"dev": "bun run --hot src/index.ts",
+		"upload": "bun run scripts/upload.ts",
 		"fact-check": "bun run scripts/fact-check.cli.ts",
 		"format": "biome format --write .",
 		"lint": "biome lint --write ."
