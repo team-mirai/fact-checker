@@ -8,6 +8,7 @@
 		"lint": "biome lint --write ."
 	},
 	"dependencies": {
+		"@google-cloud/secret-manager": "^6.0.1",
 		"@hono/node-server": "^1.14.2",
 		"@slack/bolt": "^4.4.0",
 		"@slack/events-api": "^3.0.1",

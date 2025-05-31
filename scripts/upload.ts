@@ -7,7 +7,13 @@ import OpenAI from "openai";
 const openai = new OpenAI();
 
 async function main() {
-	const files = await glob("policy/*.md");
+	const args = process.argv.slice(2);
+	const sourceDirFlag = args.find((arg) => arg.startsWith('--source-dir='));
+	const sourceDir = sourceDirFlag ? sourceDirFlag.split('=')[1] : 'policy';
+
+	console.log(`Using source directory: ${sourceDir}`);
+
+	const files = await glob(`${sourceDir}/*.md`);
 	if (!files.length) throw new Error("no corpus files found");
 
 	const fileIds: string[] = [];
