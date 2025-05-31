@@ -130,4 +130,96 @@ gcloud scheduler jobs create http cron-fetch-tweets \
 --update-headers "X-Cron-Secret=$CRON_SECRET"
 ```
 
+# ベクターストア自動更新ガイド
+
+ポリシードキュメントが更新された際に、ベクターストアを自動的に更新するための機能です。GitHub Actionsワークフローを使用して、定期的または手動でベクターストアの再構築を行うことができます。
+
+## 1. 必要な環境変数とシークレットを設定する
+
+GitHub リポジトリの Settings > Secrets and variables > Actions で以下を設定してください。
+
+### Repository Variables（変数）
+```
+POLICY_REPO: ポリシードキュメントリポジトリ名（デフォルト: policy-documents）
+POLICY_BRANCH: ポリシーリポジトリのブランチ（デフォルト: main）
+POLICY_DIR: ポリシーファイルのディレクトリ（デフォルト: policy）
+REBUILD_SCHEDULE: 再構築スケジュール（デフォルト: 0 */6 * * *）
+VECTOR_STORE_SECRET: ベクターストアIDのシークレット名（デフォルト: VECTOR_STORE_ID）
+VECTOR_STORE_BACKUP_SECRET: バックアップ用シークレット名（デフォルト: VECTOR_STORE_ID-backup）
+SLACK_NOTIFICATIONS: Slack通知の有効/無効（true/false）
+```
+
+### Repository Secrets（シークレット）
+```
+OPENAI_API_KEY: OpenAI APIキー
+GCLOUD_SERVICE_KEY: Google Cloud サービスアカウントキー（JSON形式）
+PROJECT_ID: Google Cloud プロジェクトID
+POLICY_REPO_PAT: ポリシーリポジトリアクセス用Personal Access Token（プライベートリポジトリの場合）
+SLACK_WEBHOOK_URL: Slack通知用Webhook URL（通知有効時のみ）
+```
+
+## 2. Google Cloud Secret Managerを設定する
+
+Google Cloud Consoleで以下のシークレットを作成してください。
+
+```bash
+# ベクターストアIDを保存するシークレットを作成
+gcloud secrets create VECTOR_STORE_ID --replication-policy="automatic"
+
+# バックアップ用シークレットを作成
+gcloud secrets create VECTOR_STORE_ID-backup --replication-policy="automatic"
+
+# サービスアカウントにシークレットへのアクセス権を付与
+gcloud secrets add-iam-policy-binding VECTOR_STORE_ID \
+  --member="serviceAccount:YOUR_SERVICE_ACCOUNT@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud secrets add-iam-policy-binding VECTOR_STORE_ID-backup \
+  --member="serviceAccount:YOUR_SERVICE_ACCOUNT@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+## 3. 外部からワークフローをトリガーする
+
+GitHub APIを使用して、外部からワークフローを実行できます。
+
+```bash
+# GitHub Personal Access Tokenを設定
+GH_TOKEN="your_github_token"
+
+# リポジトリディスパッチイベントを送信
+curl -X POST \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/team-mirai-volunteer/fact-checker/dispatches \
+  -d '{"event_type":"embed","client_payload":{"sha":"main"}}'
+```
+
+## 4. Secret Managerからベクターストアを取得する
+
+アプリケーションは環境変数`VECTOR_STORE_ID`が設定されていない場合、自動的にGoogle Cloud Secret ManagerからベクターストアIDを取得します。
+
+この機能を使用するには、アプリケーションがGoogle Cloud環境で実行されていることを確認し、適切なIAM権限が設定されていることを確認してください。
+
+```bash
+# Google Cloud Run環境変数の設定例
+gcloud run deploy x-fact-checker \
+--image "$IMAGE" \
+--region asia-northeast1 \
+--allow-unauthenticated \
+--set-env-vars="GOOGLE_CLOUD_PROJECT=your-project-id" \
+--service-account="your-service-account@your-project.iam.gserviceaccount.com"
+```
+
+## 5. 手動でワークフローを実行する
+
+GitHub Actionsのインターフェースから「Embed-and-Swap」ワークフローを手動で実行することもできます。
+
+1. リポジトリの「Actions」タブを開く
+2. 左側のサイドバーから「Embed-and-Swap」を選択
+3. 「Run workflow」ボタンをクリック
+4. 必要に応じてパラメータを設定し、「Run workflow」をクリック
+
+これにより、最新のポリシードキュメントを使用してベクターストアが更新されます。
+
 
