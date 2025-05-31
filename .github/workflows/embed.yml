@@ -1,0 +1,90 @@
+name: Embed-and-Swap
+on:
+  repository_dispatch:
+    types: [embed]
+  schedule:
+    - cron: ${{ vars.REBUILD_SCHEDULE || '0 */6 * * *' }}
+  workflow_dispatch:
+
+env:
+  POLICY_REPO: ${{ vars.POLICY_REPO || 'policy-documents' }}
+  VECTOR_STORE_SECRET: ${{ vars.VECTOR_STORE_SECRET || 'VECTOR_STORE_ID' }}
+  VECTOR_STORE_BACKUP_SECRET: ${{ vars.VECTOR_STORE_BACKUP_SECRET || 'VECTOR_STORE_ID-backup' }}
+
+jobs:
+  embed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.POLICY_REPO }}
+          ref: ${{ github.event.client_payload.sha || vars.POLICY_BRANCH || 'main' }}
+          path: policy
+          token: ${{ secrets.POLICY_REPO_PAT || github.token }}
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCLOUD_SERVICE_KEY }}
+          project_id: ${{ secrets.PROJECT_ID }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Create new Vector Store
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          POLICY_DIR: ${{ vars.POLICY_DIR || 'policy' }}
+        run: |
+          bunx tsx scripts/upload.ts --source-dir="$POLICY_DIR"
+          NEW_ID=$(jq -r '.id' config/vectorStore.json)
+          echo "NEW_VECTOR_STORE_ID=$NEW_ID" >> $GITHUB_ENV
+          echo "New Vector Store ID: $NEW_ID"
+
+      - name: Update Secret Manager
+        run: |
+          echo "$NEW_VECTOR_STORE_ID" | gcloud secrets versions add $VECTOR_STORE_SECRET --data-file=-
+          echo "Updated Secret Manager with new Vector Store ID"
+
+      - name: Delete old Vector Store
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          OLD_ID=$(gcloud secrets versions access latest --secret="$VECTOR_STORE_BACKUP_SECRET" 2>/dev/null || echo "")
+          if [ -n "$OLD_ID" ] && [ "$OLD_ID" != "$NEW_VECTOR_STORE_ID" ]; then
+            curl -X DELETE \
+              -H "Authorization: Bearer $OPENAI_API_KEY" \
+              -H "Content-Type: application/json" \
+              "https://api.openai.com/v1/vector_stores/$OLD_ID" || echo "Failed to delete old store"
+            echo "Deleted old Vector Store: $OLD_ID"
+          fi
+          echo "$NEW_VECTOR_STORE_ID" | gcloud secrets versions add $VECTOR_STORE_BACKUP_SECRET --data-file=-
+
+      - name: Notify success
+        if: success() && vars.SLACK_NOTIFICATIONS == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":":rocket: Vector Store updated successfully: '"$NEW_VECTOR_STORE_ID"'"}' \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Notify failure
+        if: failure() && vars.SLACK_NOTIFICATIONS == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":":boom: Vector Store update failed. Check workflow logs."}' \
+            "$SLACK_WEBHOOK_URL"
