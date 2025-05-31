@@ -42,15 +42,15 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Create new Vector Store
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          POLICY_DIR: ${{ vars.POLICY_DIR || 'policy' }}
-        run: |
-          bunx tsx scripts/upload.ts --source-dir="$POLICY_DIR"
-          NEW_ID=$(jq -r '.id' config/vectorStore.json)
-          echo "NEW_VECTOR_STORE_ID=$NEW_ID" >> $GITHUB_ENV
-          echo "New Vector Store ID: $NEW_ID"
+      # - name: Create new Vector Store
+      #   env:
+      #     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      #     POLICY_DIR: ${{ vars.POLICY_DIR || 'policy' }}
+      #   run: |
+      #     bunx tsx scripts/upload.ts --source-dir="$POLICY_DIR"
+      #     NEW_ID=$(jq -r '.id' config/vectorStore.json)
+      #     echo "NEW_VECTOR_STORE_ID=$NEW_ID" >> $GITHUB_ENV
+      #     echo "New Vector Store ID: $NEW_ID"
 
       # - name: Update Secret Manager
       #   run: |
