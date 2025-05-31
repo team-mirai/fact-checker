@@ -52,24 +52,24 @@ jobs:
           echo "NEW_VECTOR_STORE_ID=$NEW_ID" >> $GITHUB_ENV
           echo "New Vector Store ID: $NEW_ID"
 
-      - name: Update Secret Manager
-        run: |
-          echo "$NEW_VECTOR_STORE_ID" | gcloud secrets versions add $VECTOR_STORE_SECRET --data-file=-
-          echo "Updated Secret Manager with new Vector Store ID"
+      # - name: Update Secret Manager
+      #   run: |
+      #     echo "$NEW_VECTOR_STORE_ID" | gcloud secrets versions add $VECTOR_STORE_SECRET --data-file=-
+      #     echo "Updated Secret Manager with new Vector Store ID"
 
-      - name: Delete old Vector Store
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          OLD_ID=$(gcloud secrets versions access latest --secret="$VECTOR_STORE_BACKUP_SECRET" 2>/dev/null || echo "")
-          if [ -n "$OLD_ID" ] && [ "$OLD_ID" != "$NEW_VECTOR_STORE_ID" ]; then
-            curl -X DELETE \
-              -H "Authorization: Bearer $OPENAI_API_KEY" \
-              -H "Content-Type: application/json" \
-              "https://api.openai.com/v1/vector_stores/$OLD_ID" || echo "Failed to delete old store"
-            echo "Deleted old Vector Store: $OLD_ID"
-          fi
-          echo "$NEW_VECTOR_STORE_ID" | gcloud secrets versions add $VECTOR_STORE_BACKUP_SECRET --data-file=-
+      # - name: Delete old Vector Store
+      #   env:
+      #     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      #   run: |
+      #     OLD_ID=$(gcloud secrets versions access latest --secret="$VECTOR_STORE_BACKUP_SECRET" 2>/dev/null || echo "")
+      #     if [ -n "$OLD_ID" ] && [ "$OLD_ID" != "$NEW_VECTOR_STORE_ID" ]; then
+      #       curl -X DELETE \
+      #         -H "Authorization: Bearer $OPENAI_API_KEY" \
+      #         -H "Content-Type: application/json" \
+      #         "https://api.openai.com/v1/vector_stores/$OLD_ID" || echo "Failed to delete old store"
+      #       echo "Deleted old Vector Store: $OLD_ID"
+      #     fi
+      #     echo "$NEW_VECTOR_STORE_ID" | gcloud secrets versions add $VECTOR_STORE_BACKUP_SECRET --data-file=-
 
       - name: Notify success
         if: success() && vars.SLACK_NOTIFICATIONS == 'true'
