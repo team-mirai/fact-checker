@@ -3,7 +3,7 @@ on:
   repository_dispatch:
     types: [embed]
   schedule:
-    - cron: ${{ vars.REBUILD_SCHEDULE || '0 */6 * * *' }}
+    - cron: '0 */6 * * *'     # フォールバック
   workflow_dispatch:
 
 env:
