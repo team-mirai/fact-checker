@@ -143,7 +143,6 @@ GitHub リポジトリの Settings > Secrets and variables > Actions で以下�
 POLICY_REPO: ポリシードキュメントリポジトリ名（デフォルト: policy-documents）
 POLICY_BRANCH: ポリシーリポジトリのブランチ（デフォルト: main）
 POLICY_DIR: ポリシーファイルのディレクトリ（デフォルト: policy）
-REBUILD_SCHEDULE: 再構築スケジュール（デフォルト: 0 */6 * * *）
 VECTOR_STORE_SECRET: ベクターストアIDのシークレット名（デフォルト: VECTOR_STORE_ID）
 VECTOR_STORE_BACKUP_SECRET: バックアップ用シークレット名（デフォルト: VECTOR_STORE_ID-backup）
 SLACK_NOTIFICATIONS: Slack通知の有効/無効（true/false）
@@ -154,9 +153,19 @@ SLACK_NOTIFICATIONS: Slack通知の有効/無効（true/false）
 OPENAI_API_KEY: OpenAI APIキー
 GCLOUD_SERVICE_KEY: Google Cloud サービスアカウントキー（JSON形式）
 PROJECT_ID: Google Cloud プロジェクトID
-POLICY_REPO_PAT: ポリシーリポジトリアクセス用Personal Access Token（プライベートリポジトリの場合）
+POLICY_REPO_PAT: ポリシーリポジトリアクセス用Personal Access Token
 SLACK_WEBHOOK_URL: Slack通知用Webhook URL（通知有効時のみ）
 ```
+
+#### Personal Access Tokenの作成手順
+
+1. GitHubの Settings > Developer settings > Personal access tokens > Fine-grained tokens を開く
+2. 「Generate new token」をクリック
+3. 以下の設定を行う：
+   - **Repository access**: Selected repositories を選択し、ポリシーリポジトリを指定
+   - **Permissions**: Repository permissions で「Contents: Read」を設定
+4. 「Generate token」をクリックしてトークンを生成
+5. 生成されたトークンを `POLICY_REPO_PAT` シークレットに設定
 
 ## 2. Google Cloud Secret Managerを設定する
 
@@ -186,12 +195,14 @@ GitHub APIを使用して、外部からワークフローを実行できます�
 ```bash
 # GitHub Personal Access Tokenを設定
 GH_TOKEN="your_github_token"
+GITHUB_OWNER="your_github_owner"
+GITHUB_REPO="your_repository_name"
 
 # リポジトリディスパッチイベントを送信
 curl -X POST \
   -H "Authorization: Bearer $GH_TOKEN" \
   -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/team-mirai-volunteer/fact-checker/dispatches \
+  https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/dispatches \
   -d '{"event_type":"embed","client_payload":{"sha":"main"}}'
 ```
 
