@@ -1,11 +1,48 @@
 import OpenAI from "openai";
+import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const vectorStoreId =
-	process.env.VECTOR_STORE_ID ??
-	(() => {
-		throw new Error("VECTOR_STORE_ID is not set");
-	})();
+
+let cachedVectorStoreId: string | null = null;
+
+async function getVectorStoreId(): Promise<string> {
+	if (cachedVectorStoreId) {
+		return cachedVectorStoreId;
+	}
+
+	const envVectorStoreId = process.env.VECTOR_STORE_ID;
+	if (envVectorStoreId) {
+		console.log("Using VECTOR_STORE_ID from environment variable");
+		cachedVectorStoreId = envVectorStoreId;
+		return cachedVectorStoreId;
+	}
+
+	try {
+		const client = new SecretManagerServiceClient();
+		const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID;
+		
+		if (!projectId) {
+			throw new Error("PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable not set");
+		}
+
+		const secretName = `projects/${projectId}/secrets/VECTOR_STORE_ID/versions/latest`;
+		console.log(`Retrieving vector store ID from Secret Manager: ${secretName}`);
+		
+		const [version] = await client.accessSecretVersion({ name: secretName });
+		const vectorStoreId = version.payload?.data?.toString();
+		
+		if (!vectorStoreId) {
+			throw new Error("Vector store ID is empty in Secret Manager");
+		}
+
+		console.log("Successfully retrieved vector store ID from Secret Manager");
+		cachedVectorStoreId = vectorStoreId;
+		return cachedVectorStoreId;
+	} catch (error) {
+		console.error("Failed to retrieve vector store ID from Secret Manager:", error);
+		throw new Error("VECTOR_STORE_ID not available from environment variable or Secret Manager");
+	}
+}
 
 export interface CheckResult {
 	ok: boolean; // 事実と概ね一致?
@@ -18,6 +55,8 @@ export interface CheckResult {
  * @param statement チェック対象文章
  */
 export async function factCheck(statement: string): Promise<CheckResult> {
+	const vectorStoreId = await getVectorStoreId();
+	
 	const res = await openai.responses.create({
 		model: "o3-mini",
 		tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }],
