@@ -1,6 +1,5 @@
 pre-commit:
   commands:
     check:
-      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
-      run: bunx biome format --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+      run: bun run biome:check:write
       stage_fixed: true
