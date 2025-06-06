@@ -1,26 +1,33 @@
 {
   "name": "x-fact-check",
+  "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "upload": "bun run scripts/upload.ts",
     "fact-check": "bun run scripts/fact-check.cli.ts",
     "biome:check:write": "biome check --write .",
     "format": "biome format --write .",
-    "lint": "biome lint --write ."
+    "lint": "biome lint --write .",
+    "get-note-article": "bun run scripts/get-note-articles.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.2",
+    "@octokit/rest": "^22.0.0",
     "@slack/bolt": "^4.4.0",
     "@slack/events-api": "^3.0.1",
     "@slack/web-api": "^7.9.2",
     "hono": "^4.7.10",
     "openai": "^4.0.0",
-    "twitter-api-v2": "^1.23.2"
+    "simple-git": "^3.28.0",
+    "turndown": "^7.2.0",
+    "twitter-api-v2": "^1.23.2",
+    "undici": "^7.10.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/bun": "latest",
     "@types/node": "^22.15.21",
+    "@types/turndown": "^5.0.5",
     "dotenv": "^16.5.0",
     "fast-glob": "^3.3.3",
     "lefthook": "^1.11.13",
