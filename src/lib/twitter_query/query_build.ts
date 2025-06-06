@@ -1,4 +1,4 @@
-import { searchKeywords, searchFilters } from "./config";
+import { searchFilters, searchKeywords } from "./config";
 
 /**
  * Twitter検索用のクエリを構築する
@@ -7,15 +7,15 @@ import { searchKeywords, searchFilters } from "./config";
  * @returns 検索クエリ文字列
  */
 export function buildSearchQuery(
-	keywords: string[] = searchKeywords,
-	filters: string[] = searchFilters,
+  keywords: string[] = searchKeywords,
+  filters: string[] = searchFilters,
 ): string {
-	// キーワードを OR で結合
-	const keywordsQuery = keywords.map((keyword) => `"${keyword}"`).join(" OR ");
+  // キーワードを OR で結合
+  const keywordsQuery = keywords.map((keyword) => `"${keyword}"`).join(" OR ");
 
-	// フィルターをスペースで結合
-	const filtersQuery = filters.join(" ");
+  // フィルターをスペースで結合
+  const filtersQuery = filters.join(" ");
 
-	// 全体を結合
-	return `(${keywordsQuery}) ${filtersQuery}`;
+  // 全体を結合
+  return `(${keywordsQuery}) ${filtersQuery}`;
 }
