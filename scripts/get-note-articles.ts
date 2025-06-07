@@ -221,13 +221,46 @@ async function processArticle(key: string, outputDir: string): Promise<void> {
   }
 }
 
+// リポジトリ名の検証関数
+function validateRepositoryName(repo: string): {
+  owner: string;
+  repoName: string;
+} {
+  // GitHubの仕様に基づく正規表現
+  // オーナー名: アルファベット、数字、ハイフンのみ許可（先頭はアルファベットまたは数字）
+  // リポジトリ名: アルファベット、数字、ハイフン、アンダースコア、ドット、プラスを許可（先頭はアルファベットまたは数字）
+  const repoRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\/[a-zA-Z0-9][a-zA-Z0-9-_.+]*$/;
+  if (!repoRegex.test(repo)) {
+    throw new Error("Invalid repository format. Expected format: owner/repo");
+  }
+
+  // パストラバーサル対策
+  if (repo.includes("..")) {
+    throw new Error("Invalid repository name: contains '..'");
+  }
+
+  const [owner, repoName] = repo.split("/");
+  if (!owner || !repoName) {
+    throw new Error("Invalid repository format. Expected format: owner/repo");
+  }
+
+  // 長さの制限
+  if (owner.length > 39 || repoName.length > 100) {
+    throw new Error("Repository name or owner name is too long");
+  }
+
+  // URLエンコーディングを適用
+  return {
+    owner: encodeURIComponent(owner),
+    repoName: encodeURIComponent(repoName),
+  };
+}
+
 // GitHubへのプッシュ
 async function pushToGithub(outputDir: string, repo: string): Promise<void> {
   try {
-    const [owner, repoName] = repo.split("/");
-    if (!owner || !repoName) {
-      throw new Error("Invalid repository format. Expected format: owner/repo");
-    }
+    // リポジトリ名の検証
+    const { owner, repoName } = validateRepositoryName(repo);
 
     if (!process.env.NOTE_REPO_TOKEN) {
       throw new Error("NOTE_REPO_TOKEN environment variable is not set");
@@ -244,32 +277,43 @@ async function pushToGithub(outputDir: string, repo: string): Promise<void> {
     fs.mkdirSync(tempDir, { recursive: true });
 
     // 一時ディレクトリにGitリポジトリを初期化
-    const git = simpleGit(tempDir);
+    const git = simpleGit(tempDir, {
+      // @ts-ignore: simple-gitの型定義の問題を回避
+      env: {
+        GIT_ASKPASS: "echo",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_USERNAME: owner,
+        GIT_PASSWORD: process.env.NOTE_REPO_TOKEN,
+      },
+    });
     log("Initializing temporary Git repository...");
     await git.init();
 
-    // リモートの設定
+    // リモートの設定（安全なURL構築）
     log("Adding GitHub remote...");
-    await git.addRemote(
-      "origin",
-      `https://oauth2:${process.env.NOTE_REPO_TOKEN}@github.com/${repo}.git`,
-    );
+    const remoteUrl = `https://github.com/${owner}/${repoName}.git`;
+    await git.addRemote("origin", remoteUrl);
 
     // リモートブランチの確認（存在すれば取得）
+    let defaultBranch = "main";
     try {
       log("Checking remote repository...");
-      await git.listRemote(["--heads", "origin"]);
+      const remoteInfo = await git.listRemote(["--heads", "origin"]);
 
-      // リモートブランチが存在する場合は取得を試みる
-      try {
+      if (!remoteInfo) {
+        // リモートリポジトリが空の場合
+        log("Creating new main branch for empty repository...");
+        await git.checkout(["-b", defaultBranch]);
+      } else {
+        // リモートブランチが存在する場合
         log("Fetching from remote...");
         await git.fetch("origin");
 
-        // main/masterブランチの確認
-        const branches = await git.branch(["-r"]);
-        const hasMain = branches.all.includes("origin/main");
-        const hasMaster = branches.all.includes("origin/master");
-        const defaultBranch = hasMain ? "main" : hasMaster ? "master" : "main";
+        // デフォルトブランチの確認
+        defaultBranch = await octokit.repos
+          .get({ owner, repo: repoName })
+          .then((res) => res.data.default_branch)
+          .catch(() => "main");
 
         log(`Checking out ${defaultBranch} branch...`);
         try {
@@ -278,15 +322,11 @@ async function pushToGithub(outputDir: string, repo: string): Promise<void> {
           // ローカルブランチが既に存在する場合
           await git.checkout(defaultBranch);
         }
-      } catch (error) {
-        // 取得に失敗した場合は新規ブランチとして作成
-        log("Creating new main branch...");
-        await git.checkout(["-b", "main"]);
       }
-    } catch {
-      // リモートリポジトリが空または存在しない場合
-      log("Creating new main branch for empty repository...");
-      await git.checkout(["-b", "main"]);
+    } catch (error) {
+      throw new Error(
+        `Failed to access remote repository: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     // markdownファイルだけをコピー
@@ -330,7 +370,7 @@ async function pushToGithub(outputDir: string, repo: string): Promise<void> {
 
     try {
       log("Pushing to GitHub repository...");
-      await git.push("origin", "main", ["--set-upstream", "--force"]);
+      await git.push("origin", defaultBranch, ["--set-upstream", "--force"]);
       log("Successfully pushed changes to GitHub", "success");
     } catch (error) {
       throw new Error(
