@@ -13,19 +13,13 @@ const app = new Hono();
 
 const factChcker = createFactChecker();
 
-const vectorStoreId =
-  process.env.VECTOR_STORE_ID ??
-  (() => {
-    throw new Error("VECTOR_STORE_ID is not set");
-  })();
-
 app.get("/", (c) => c.text("Hello Hono!"));
 
 /* ------------------------------------------------------------------ */
 /*  共通: ツイート本文のファクトチェック＆通知処理                    */
 /* ------------------------------------------------------------------ */
 async function checkAndNotify(tweetText: string, tweetUrl: string) {
-  const check = await factChcker.factCheck(tweetText, vectorStoreId);
+  const check = await factChcker.factCheck(tweetText);
 
   const label = check.ok ? "✅ OK" : "❌ NG";
   console.log("────────────────────────────────");

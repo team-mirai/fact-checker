@@ -1,5 +1,7 @@
-import { factCheck } from "../fact-check";
+import { createFactChecker } from "../fact_checker";
 import { slackApp } from "./client";
+
+const factChecker = createFactChecker();
 
 /**
  * App にメンションされたテキストをファクトチェックし、同じスレッドに返信する
@@ -10,7 +12,7 @@ slackApp.event("app_mention", async ({ event, client }) => {
   if (!text) return;
 
   // ファクトチェック
-  const check = await factCheck(text);
+  const check = await factChecker.factCheck(text);
   const label = check.ok ? "✅ OK" : "❌ NG";
 
   // スレッド (thread_ts) があればそこへ、無ければメンションに紐付けて返信
