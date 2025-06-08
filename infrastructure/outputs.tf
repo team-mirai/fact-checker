@@ -11,13 +11,10 @@ output "app_name" {
 
 output "service_url" {
   description = "Cloud Run service URL"
-  value       = module.fact_checker_app.service_url
+  value       = google_cloud_run_v2_service.fact_checker.uri
 }
 
-output "scheduler_name" {
-  description = "Cloud Scheduler job name"
-  value       = local.scheduler_name
-}
+
 
 output "region" {
   description = "GCP region"
@@ -29,10 +26,8 @@ output "resource_summary" {
   value = {
     environment    = local.environment
     app_name      = local.app_name
-    service_url   = module.fact_checker_app.service_url
-    scheduler     = local.scheduler_name
+    service_url   = google_cloud_run_v2_service.fact_checker.uri
     min_instances = local.current_config.min_instances
     max_instances = local.current_config.max_instances
-    cron_schedule = local.current_config.cron_schedule
   }
 }
