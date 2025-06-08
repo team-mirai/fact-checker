@@ -10,6 +10,7 @@ module "secrets" {
   
   environment            = local.environment
   service_account_email  = module.fact_checker_app.service_account_email
+  secrets                = var.secrets
 }
 
 module "fact_checker_app" {
