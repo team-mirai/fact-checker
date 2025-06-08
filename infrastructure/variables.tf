@@ -83,7 +83,7 @@ variable "min_instances" {
   
   validation {
     condition     = var.min_instances >= 0 && var.min_instances <= 10
-    error_message = "min_instances must be between 0 and 10."
+    error_message = "The min_instances value must be between 0 and 10."
   }
 }
 
@@ -94,7 +94,7 @@ variable "max_instances" {
   
   validation {
     condition     = var.max_instances >= 1 && var.max_instances <= 100
-    error_message = "max_instances must be between 1 and 100."
+    error_message = "The max_instances value must be between 1 and 100."
   }
 }
 
@@ -105,7 +105,7 @@ variable "cpu_limit" {
   
   validation {
     condition     = contains(["1", "2", "4", "8"], var.cpu_limit)
-    error_message = "cpu_limit must be one of: 1, 2, 4, 8."
+    error_message = "The cpu_limit value must be one of: 1, 2, 4, 8."
   }
 }
 
@@ -116,7 +116,7 @@ variable "memory_limit" {
   
   validation {
     condition     = can(regex("^[0-9]+(Mi|Gi)$", var.memory_limit))
-    error_message = "memory_limit must be in format like '512Mi' or '1Gi'."
+    error_message = "The memory_limit value must be in format like '512Mi' or '1Gi'."
   }
 }
 
@@ -127,7 +127,7 @@ variable "cron_schedule" {
   
   validation {
     condition     = can(regex("^[0-9*,-/]+ [0-9*,-/]+ [0-9*,-/]+ [0-9*,-/]+ [0-9*,-/]+$", var.cron_schedule))
-    error_message = "cron_schedule must be a valid cron expression."
+    error_message = "The cron_schedule value must be a valid cron expression."
   }
 }
 
@@ -150,6 +150,6 @@ variable "log_level" {
   
   validation {
     condition     = contains(["debug", "info", "warn", "error"], var.log_level)
-    error_message = "log_level must be one of: debug, info, warn, error."
+    error_message = "The log_level value must be one of: debug, info, warn, error."
   }
 }
