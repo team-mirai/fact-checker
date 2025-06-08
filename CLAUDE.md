@@ -1,0 +1,151 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is a Twitter/X fact-checking bot that monitors posts about "チームみらい" (Team Mirai), automatically performs fact-checking using OpenAI's GPT models, and sends notifications to Slack when misinformation is detected.
+
+## Key Commands
+
+### Development
+- `bun run dev` - Start development server with hot reload
+- `bun run fact-check "text to check"` - Run fact-checking on provided text via CLI
+- `bun run upload` - Upload policy documents from `policy/` directory to OpenAI vector store
+
+### Code Quality
+- `bun run biome:check:write` - Run Biome checks and auto-fix issues
+- `bun run format` - Format code with Biome
+- `bun run lint` - Lint code with Biome
+
+### Testing
+- `bun test` - Run tests using Bun's built-in test runner
+
+## Architecture Overview
+
+### Core Components
+
+1. **Fact-Checking Engine** (`src/lib/fact_checker/`)
+   - Abstracted interface supporting multiple providers (OpenAI, Ollama)
+   - OpenAI: Uses o3-mini model with file search capabilities
+   - Ollama: Uses local LLM with LlamaIndex for vector search
+   - Strict rules: only checks claims about people, not events or achievements
+   - Returns OK/NG status with explanations and citations
+
+2. **Twitter Integration** (`src/lib/twitter.ts`, `src/lib/twitter_query/`)
+   - Searches for Team Mirai-related posts using Twitter API v2
+   - Configurable keywords and filters in `src/lib/twitter_query/config.ts`
+
+3. **Slack Integration** (`src/lib/slack/`)
+   - Sends notifications when misinformation is detected
+   - Supports interactive buttons for actions
+   - Uses Slack Bolt framework
+
+4. **Web Server** (`src/index.ts`)
+   - Built with Hono framework
+   - Main endpoints:
+     - `GET /cron/fetch` - Scheduled endpoint for Twitter monitoring (protected by CRON_SECRET)
+     - `POST /slack/events` - Webhook for Slack events
+     - `POST /slack/actions` - Webhook for Slack interactive actions
+
+### Environment Variables Required
+
+All stored in `.env` file:
+
+#### Core System
+- `ENV` - Environment mode (`prod` or `dev`, defaults to `dev`)
+- `FACT_CHECKER_PROVIDER` - Fact checker provider (`openai` or `ollama`, defaults to `openai` in prod, `ollama` in dev)
+
+#### OpenAI Provider (when using `openai`)
+- `OPENAI_API_KEY` - OpenAI API key
+- `VECTOR_STORE_ID` - OpenAI vector store ID (obtained after running `bun run upload`)
+
+#### Ollama Provider (when using `ollama`)
+- `OLLAMA_BASE_URL` - Ollama server URL (defaults to `http://localhost:11434`)
+- `OLLAMA_MODEL` - Ollama model name (defaults to `llama3.2`)
+- `OLLAMA_VECTOR_STORE_PATH` - Local vector store directory (defaults to `./vector_store`)
+
+#### External APIs
+- `X_BEARER_TOKEN` - Twitter/X API Bearer Token
+- `SLACK_BOT_TOKEN` - Slack Bot User OAuth Token
+- `SLACK_SIGNING_SECRET` - Slack Signing Secret
+- `SLACK_CHANNEL_ID` - Slack channel ID for notifications
+- `CRON_SECRET` - Secret for authenticating cron requests
+
+## Development Guidelines
+
+### Code Style
+- TypeScript with strict mode enabled
+- Biome for formatting: 2 spaces, double quotes
+- Pre-commit hooks run Biome checks automatically via Lefthook
+
+### Fact-Checking Logic
+The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
+- Only checks factual claims about people (not events/achievements)
+- Requires citations from vector store for NG judgments
+- Uses structured prompts for consistent output format
+
+### Testing Approach
+- Tests located in `src/__tests__/`
+- Use Bun's built-in test runner
+- Focus on unit testing query builders and core logic
+
+## Local Development Setup
+
+### Option 1: Ollama + LlamaIndex (Recommended for Local Development)
+
+Uses the npm `ollama` package for API communication and `llamaindex` for vector search.
+
+1. **Install Ollama**: Download from [ollama.ai](https://ollama.ai/) or use homebrew:
+   ```bash
+   brew install ollama
+   ```
+
+2. **Pull a Japanese-capable model**:
+   ```bash
+   ollama pull llama3.2
+   # or for better Japanese support:
+   ollama pull elyza:jp-llama2-7b
+   ```
+
+3. **Set environment variables**:
+   ```bash
+   # .env
+   ENV=dev
+   FACT_CHECKER_PROVIDER=ollama
+   OLLAMA_MODEL=llama3.2
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_VECTOR_STORE_PATH=./vector_store
+   ```
+
+4. **Prepare policy documents**:
+   ```bash
+   # Ensure policy documents exist in ./policy/
+   ls ./policy/
+   ```
+
+5. **Run the application**:
+   ```bash
+   bun run dev
+   ```
+
+### Option 2: OpenAI API (Production Setup)
+
+1. **Set environment variables**:
+   ```bash
+   # .env
+   ENV=prod
+   FACT_CHECKER_PROVIDER=openai
+   OPENAI_API_KEY=your_openai_api_key
+   VECTOR_STORE_ID=your_vector_store_id
+   ```
+
+2. **Upload policy documents**:
+   ```bash
+   bun run upload
+   ```
+
+3. **Run the application**:
+   ```bash
+   bun run dev
+   ```

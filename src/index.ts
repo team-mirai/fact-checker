@@ -1,6 +1,5 @@
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { factCheck } from "./lib/fact-check";
+import { createFactChecker } from "./lib/fact_checker";
 import { notifySlack, slackApp } from "./lib/slack";
 import { sendSlackMessage } from "./lib/slack/sendSlackMessage";
 import { twitter } from "./lib/twitter";
@@ -12,13 +11,21 @@ import { verifyCron } from "./middlewares/verify-cron";
 /* ------------------------------------------------------------------ */
 const app = new Hono();
 
+const factChcker = createFactChecker();
+
+const vectorStoreId =
+  process.env.VECTOR_STORE_ID ??
+  (() => {
+    throw new Error("VECTOR_STORE_ID is not set");
+  })();
+
 app.get("/", (c) => c.text("Hello Hono!"));
 
 /* ------------------------------------------------------------------ */
 /*  共通: ツイート本文のファクトチェック＆通知処理                    */
 /* ------------------------------------------------------------------ */
 async function checkAndNotify(tweetText: string, tweetUrl: string) {
-  const check = await factCheck(tweetText);
+  const check = await factChcker.factCheck(tweetText, vectorStoreId);
 
   const label = check.ok ? "✅ OK" : "❌ NG";
   console.log("────────────────────────────────");
