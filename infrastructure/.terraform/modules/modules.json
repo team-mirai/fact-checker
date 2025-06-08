@@ -1,0 +1,1 @@
+{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"fact_checker_app","Source":"./modules/fact-checker-app","Dir":"modules/fact-checker-app"},{"Key":"scheduler","Source":"./modules/scheduler","Dir":"modules/scheduler"},{"Key":"secrets","Source":"./modules/secrets","Dir":"modules/secrets"}]}
