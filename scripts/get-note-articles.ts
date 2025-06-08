@@ -83,6 +83,38 @@ class NoteApiError extends Error {
   }
 }
 
+// セキュリティチェック用の関数
+function validateInput(input: string): void {
+  // コマンドインジェクションのチェック
+  if (input.includes(";") || input.includes("&&") || input.includes("|")) {
+    throw new Error("Invalid input");
+  }
+  // パストラバーサル攻撃のチェック
+  if (input.includes("..") || input.includes("\\") || input.includes("/")) {
+    throw new Error("Invalid input");
+  }
+  // 特殊文字のチェック
+  if (/[\n\r\t\0`$()\[\]{}]/.test(input)) {
+    throw new Error("Invalid input");
+  }
+}
+
+// output-dir用のバリデーション関数
+function validateOutputDir(input: string): void {
+  // コマンドインジェクションのチェック
+  if (input.includes(";") || input.includes("&&") || input.includes("|")) {
+    throw new Error("Invalid input");
+  }
+  // パストラバーサル攻撃のチェック（/は許可）
+  if (input.includes("..") || input.includes("\\")) {
+    throw new Error("Invalid input");
+  }
+  // 特殊文字のチェック
+  if (/[\n\r\t\0`$()\[\]{}]/.test(input)) {
+    throw new Error("Invalid input");
+  }
+}
+
 // メイン処理
 async function main() {
   try {
@@ -133,29 +165,31 @@ async function main() {
 }
 
 // CLI引数のパース
-function parseArgs(): CliArgs {
-  const args = process.argv.slice(2);
+export function parseArgs(args: string[] = process.argv.slice(2)): CliArgs {
   const parsedArgs: Partial<CliArgs> = {};
-
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i]?.replace("--", "");
     const value = args[i + 1];
-
     if (!key || value === undefined) continue;
-
+    // 入力値の検証
     switch (key) {
-      case "username":
-        parsedArgs.username = value;
-        break;
       case "output-dir":
+        validateOutputDir(value);
         parsedArgs.outputDir = value;
         break;
       case "github-repo":
+        validateRepositoryName(value);
         parsedArgs.githubRepo = value;
         break;
+      default:
+        validateInput(value);
+        switch (key) {
+          case "username":
+            parsedArgs.username = value;
+            break;
+        }
     }
   }
-
   return { ...DEFAULT_ARGS, ...parsedArgs };
 }
 
@@ -209,7 +243,7 @@ async function processArticle(key: string, outputDir: string): Promise<void> {
     // Convert HTML content to markdown
     const markdownContent = turndownService.turndown(responseData.data.body);
     const markdown = `# ${responseData.data.name}\n\n${markdownContent}`;
-    const filePath = path.join(outputDir, `${key}.md`);
+    const filePath = path.join(outputDir, sanitizeFilename(`${key}.md`));
 
     fs.writeFileSync(filePath, markdown);
     log(`Saved article: ${key}.md`);
@@ -222,33 +256,32 @@ async function processArticle(key: string, outputDir: string): Promise<void> {
 }
 
 // リポジトリ名の検証関数
-function validateRepositoryName(repo: string): {
+export function validateRepositoryName(repo: string): {
   owner: string;
   repoName: string;
 } {
   // GitHubの仕様に基づく正規表現
   // オーナー名: アルファベット、数字、ハイフンのみ許可（先頭はアルファベットまたは数字）
-  // リポジトリ名: アルファベット、数字、ハイフン、アンダースコア、ドット、プラスを許可（先頭はアルファベットまたは数字）
-  const repoRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\/[a-zA-Z0-9][a-zA-Z0-9-_.+]*$/;
+  // リポジトリ名: アルファベット、数字、ハイフン、アンダースコア、ドットのみ許可（先頭はアルファベットまたは数字）
+  const repoRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\/[a-zA-Z0-9][a-zA-Z0-9-_.]*$/;
   if (!repoRegex.test(repo)) {
-    throw new Error("Invalid repository format. Expected format: owner/repo");
+    throw new Error("Invalid input");
   }
-
   // パストラバーサル対策
   if (repo.includes("..")) {
-    throw new Error("Invalid repository name: contains '..'");
+    throw new Error("Invalid input");
   }
-
   const [owner, repoName] = repo.split("/");
   if (!owner || !repoName) {
-    throw new Error("Invalid repository format. Expected format: owner/repo");
+    throw new Error("Invalid input");
   }
-
   // 長さの制限
-  if (owner.length > 39 || repoName.length > 100) {
-    throw new Error("Repository name or owner name is too long");
+  if (owner.length > 39) {
+    throw new Error("Invalid input");
   }
-
+  if (repoName.length > 100) {
+    throw new Error("Invalid input");
+  }
   // URLエンコーディングを適用
   return {
     owner: encodeURIComponent(owner),
@@ -257,7 +290,10 @@ function validateRepositoryName(repo: string): {
 }
 
 // GitHubへのプッシュ
-async function pushToGithub(outputDir: string, repo: string): Promise<void> {
+export async function pushToGithub(
+  outputDir: string,
+  repo: string,
+): Promise<void> {
   try {
     // リポジトリ名の検証
     const { owner, repoName } = validateRepositoryName(repo);
@@ -278,7 +314,6 @@ async function pushToGithub(outputDir: string, repo: string): Promise<void> {
 
     // 一時ディレクトリにGitリポジトリを初期化
     const git = simpleGit(tempDir, {
-      // @ts-ignore: simple-gitの型定義の問題を回避
       env: {
         GIT_ASKPASS: "echo",
         GIT_TERMINAL_PROMPT: "0",
@@ -385,6 +420,24 @@ async function pushToGithub(outputDir: string, repo: string): Promise<void> {
       `Failed to push to GitHub: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+// 新しい関数を追加
+export function sanitizeFilename(filename: string): string {
+  // ファイル名と拡張子を分離
+  const lastDotIndex = filename.lastIndexOf(".");
+  const name = lastDotIndex === -1 ? filename : filename.slice(0, lastDotIndex);
+  const ext = lastDotIndex === -1 ? "" : filename.slice(lastDotIndex);
+
+  // ファイル名部分のみをサニタイズ（特殊文字を1つのアンダースコアに変換）
+  const sanitizedName = name.replace(/[^a-zA-Z0-9-_]+/g, "_");
+
+  // 拡張子部分はそのまま保持（ドットとアルファベット、数字のみ許可）
+  const sanitizedExt = ext.replace(/[^a-zA-Z0-9.]/g, "");
+
+  // 長さ制限（拡張子を含めて255文字）
+  const maxNameLength = 255 - sanitizedExt.length;
+  return sanitizedName.slice(0, maxNameLength) + sanitizedExt;
 }
 
 // スクリプトの実行

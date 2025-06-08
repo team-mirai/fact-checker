@@ -8,6 +8,7 @@
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
     "lib": ["ES2022", "DOM"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "isolatedModules": true
   }
 }
