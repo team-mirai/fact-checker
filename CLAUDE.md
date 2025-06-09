@@ -26,8 +26,12 @@ This is a Twitter/X fact-checking bot that monitors posts about "チームみら
 ### Core Components
 
 1. **Fact-Checking Engine** (`src/lib/fact_checker/`)
-   - Abstracted interface supporting multiple providers (OpenAI, etc...)
+   - Abstracted interface supporting multiple providers (OpenAI, local)
+   - Provider selection based on ENV variable:
+     - `ENV=prod` or `ENV=dev` → OpenAI provider
+     - Any other value → Local provider (for testing)
    - OpenAI: Uses o3-mini model with file search capabilities
+   - Local: Returns mock data from JSON file
    - Strict rules: only checks claims about people, not events or achievements
    - Returns OK/NG status with explanations and citations
 
@@ -52,8 +56,7 @@ This is a Twitter/X fact-checking bot that monitors posts about "チームみら
 All stored in `.env` file:
 
 #### Core System
-- `ENV` - Environment mode (`prod` or `dev`, defaults to `dev`)
-- `FACT_CHECKER_PROVIDER` - Fact checker provider (`openai`, defaults to `openai` in prod)
+- `ENV` - Environment mode (`prod`, `dev`, or other values for local testing, defaults to `local`)
 
 #### OpenAI Provider (when using `openai`)
 - `OPENAI_API_KEY` - OpenAI API key
@@ -83,6 +86,15 @@ The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
 - Tests located in `src/__tests__/`
 - Use Bun's built-in test runner
 - Focus on unit testing query builders and core logic
+- When using `test.each` with Bun, use array format for proper variable interpolation:
+  ```typescript
+  test.each([
+    ["dev", "openai"],
+    ["prod", "openai"],
+  ])("ENVが%sの場合、%sが使用されること", (env, want) => {
+    // test implementation
+  });
+  ```
 
 ## Local Development Setup
 
@@ -91,8 +103,7 @@ The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
 1. **Set environment variables**:
    ```bash
    # .env
-   ENV=prod
-   FACT_CHECKER_PROVIDER=openai
+   ENV=prod  # or dev
    OPENAI_API_KEY=your_openai_api_key
    VECTOR_STORE_ID=your_vector_store_id
    ```
@@ -106,3 +117,18 @@ The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
    ```bash
    bun run dev
    ```
+
+### Option 2: Local Mock Data (Testing Setup)
+
+1. **Set environment variables**:
+   ```bash
+   # .env
+   ENV=local  # or any value other than prod/dev
+   ```
+
+2. **Run the application**:
+   ```bash
+   bun run dev
+   ```
+
+Note: Local provider returns mock data from `src/lib/fact_checker/data/fact-check-result.json`
