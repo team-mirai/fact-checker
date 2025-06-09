@@ -26,9 +26,8 @@ This is a Twitter/X fact-checking bot that monitors posts about "チームみら
 ### Core Components
 
 1. **Fact-Checking Engine** (`src/lib/fact_checker/`)
-   - Abstracted interface supporting multiple providers (OpenAI, Ollama)
+   - Abstracted interface supporting multiple providers (OpenAI, etc...)
    - OpenAI: Uses o3-mini model with file search capabilities
-   - Ollama: Uses local LLM with LlamaIndex for vector search
    - Strict rules: only checks claims about people, not events or achievements
    - Returns OK/NG status with explanations and citations
 
@@ -54,16 +53,11 @@ All stored in `.env` file:
 
 #### Core System
 - `ENV` - Environment mode (`prod` or `dev`, defaults to `dev`)
-- `FACT_CHECKER_PROVIDER` - Fact checker provider (`openai` or `ollama`, defaults to `openai` in prod, `ollama` in dev)
+- `FACT_CHECKER_PROVIDER` - Fact checker provider (`openai`, defaults to `openai` in prod)
 
 #### OpenAI Provider (when using `openai`)
 - `OPENAI_API_KEY` - OpenAI API key
 - `VECTOR_STORE_ID` - OpenAI vector store ID (obtained after running `bun run upload`)
-
-#### Ollama Provider (when using `ollama`)
-- `OLLAMA_BASE_URL` - Ollama server URL (defaults to `http://localhost:11434`)
-- `OLLAMA_MODEL` - Ollama model name (defaults to `llama3.2`)
-- `OLLAMA_VECTOR_STORE_PATH` - Local vector store directory (defaults to `./vector_store`)
 
 #### External APIs
 - `X_BEARER_TOKEN` - Twitter/X API Bearer Token
@@ -92,44 +86,7 @@ The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
 
 ## Local Development Setup
 
-### Option 1: Ollama + LlamaIndex (Recommended for Local Development)
-
-Uses the npm `ollama` package for API communication and `llamaindex` for vector search.
-
-1. **Install Ollama**: Download from [ollama.ai](https://ollama.ai/) or use homebrew:
-   ```bash
-   brew install ollama
-   ```
-
-2. **Pull a Japanese-capable model**:
-   ```bash
-   ollama pull llama3.2
-   # or for better Japanese support:
-   ollama pull elyza:jp-llama2-7b
-   ```
-
-3. **Set environment variables**:
-   ```bash
-   # .env
-   ENV=dev
-   FACT_CHECKER_PROVIDER=ollama
-   OLLAMA_MODEL=llama3.2
-   OLLAMA_BASE_URL=http://localhost:11434
-   OLLAMA_VECTOR_STORE_PATH=./vector_store
-   ```
-
-4. **Prepare policy documents**:
-   ```bash
-   # Ensure policy documents exist in ./policy/
-   ls ./policy/
-   ```
-
-5. **Run the application**:
-   ```bash
-   bun run dev
-   ```
-
-### Option 2: OpenAI API (Production Setup)
+### Option 1: OpenAI API (Production Setup)
 
 1. **Set environment variables**:
    ```bash
