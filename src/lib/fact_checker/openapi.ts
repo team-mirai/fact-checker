@@ -1,7 +1,7 @@
 import OpenAI from "openai";
-import type { CheckResult } from "./types";
+import type { CheckResult, FactChcker } from "./types";
 
-export function createOpenAIFactChcker() {
+export function createOpenAIFactChcker(): FactChcker {
   const vectorStoreId =
     process.env.VECTOR_STORE_ID ??
     (() => {
@@ -16,6 +16,7 @@ export function createOpenAIFactChcker() {
   const openai = new OpenAI({ apiKey });
 
   return {
+    provider: "openai",
     /**
      * ファクトチェック本体
      * @param content チェック対象文章

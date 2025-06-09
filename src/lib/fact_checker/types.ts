@@ -5,5 +5,6 @@ export interface CheckResult {
 }
 
 export type FactChcker = {
+  provider: "openai" | "local"; // 使用するプロバイダー
   factCheck: (content: string) => Promise<CheckResult>;
 };

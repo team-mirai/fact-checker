@@ -1,9 +1,9 @@
-import { env } from "../../lib/env";
 import { createLocalFactChecker } from "./local";
 import { createOpenAIFactChcker } from "./openapi";
 import type { FactChcker } from "./types";
 
 export function createFactChecker(): FactChcker {
+  const env = process.env.ENV || "local";
   const provider = ["prod", "dev"].includes(env) ? "openai" : "local";
 
   switch (provider) {
