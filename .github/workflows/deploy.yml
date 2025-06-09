@@ -1,5 +1,16 @@
 name: Deploy to Cloud Run
-on: [push]
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
+      - 'Dockerfile'
+      - '.github/workflows/**'
 
 permissions:
   contents: read      # auth アクション推奨
