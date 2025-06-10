@@ -1,6 +1,9 @@
 import { App } from "@slack/bolt";
 import { WebClient } from "@slack/web-api";
-import { factCheck } from "../fact-check";
+import { createFactChecker } from "../fact_checker";
+
+const factChecker = createFactChecker();
+
 export const slack = new WebClient(
   process.env.SLACK_BOT_TOKEN ??
     (() => {
@@ -20,7 +23,7 @@ slackApp.event("app_mention", async ({ event, client }) => {
   if (!rawText) return;
 
   // ファクトチェック
-  const check = await factCheck(rawText);
+  const check = await factChecker.factCheck(rawText);
   const label = check.ok ? "✅ OK" : "❌ NG";
 
   // スレッド (thread_ts) があればそこへ、無ければ新規メッセージ

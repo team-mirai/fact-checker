@@ -60,6 +60,14 @@ bun run upload
 VECTOR_STORE_ID="ここにコピーした ID を貼り付ける"
 ```
 
+## 4. ENV=prod を `.env` に追加する
+現時点で、ENVが`prod`もしくは`dev`の場合`openapi`を使う様になっています。
+それ以外は`src/lib/fact_checker/data/fact-check-result.json`のモックデータが出力されます。
+
+```bash
+ENV=prod
+```
+
 ---
 
 ## 4. ファクトチェックを実行する
@@ -95,6 +103,7 @@ SLACK_CHANNEL_ID="C01XXXXXXXXX" # 通知を送りたいチャンネル ID
 # -----------------------------------------------------------
 VECTOR_STORE_ID=""
 CRON_SECRET="" # cronの認証シークレット headerに設定する src/middlewares/verify-cron.tsを参照
+ENV=prod
 ```
 
 ## 2. デプロイする
@@ -106,6 +115,7 @@ gcloud run deploy x-fact-checker \
 --image "$IMAGE" \
 --region asia-northeast1 \
 --allow-unauthenticated \
+--set-env-vars="ENV=prod" \
 --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest,\
 X_BEARER_TOKEN=X_BEARER_TOKEN:latest,\
 VECTOR_STORE_ID=VECTOR_STORE_ID:latest,\

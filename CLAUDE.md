@@ -2,72 +2,133 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Commands
+## Project Overview
+
+This is a Twitter/X fact-checking bot that monitors posts about "チームみらい" (Team Mirai), automatically performs fact-checking using OpenAI's GPT models, and sends notifications to Slack when misinformation is detected.
+
+## Key Commands
 
 ### Development
 - `bun run dev` - Start development server with hot reload
-- `bun install` - Install dependencies
+- `bun run fact-check "text to check"` - Run fact-checking on provided text via CLI
+- `bun run upload` - Upload policy documents from `policy/` directory to OpenAI vector store
 
 ### Code Quality
-- `bun run lint` - Run Biome linter with auto-fix
+- `bun run biome:check:write` - Run Biome checks and auto-fix issues
 - `bun run format` - Format code with Biome
-- `bun run biome:check:write` - Run Biome check with auto-fix (used in pre-commit hook)
+- `bun run lint` - Lint code with Biome
 
 ### Testing
-- `bun test` - Run tests (uses Bun's built-in test runner)
+- `bun test` - Run tests using Bun's built-in test runner
 
-### CLI Tools
-- `bun run fact-check "text to check"` - Run fact-check on a given text
-- `bun run upload` - Upload documents from policy/ to vector store
-
-## Architecture
-
-This is a Twitter/X fact-checking system that monitors tweets and uses AI to verify claims against a knowledge base.
+## Architecture Overview
 
 ### Core Components
 
-**Hono Web Server** (`src/index.ts`)
-- Main application entry point with REST endpoints
-- `/cron/fetch` - Scheduled endpoint for Twitter monitoring
-- `/slack/events` and `/slack/actions` - Slack integration endpoints
-- `/test/slack` - Test endpoint for Slack notifications
+1. **Fact-Checking Engine** (`src/lib/fact_checker/`)
+   - Abstracted interface supporting multiple providers (OpenAI, local)
+   - Provider selection based on ENV variable:
+     - `ENV=prod` or `ENV=dev` → OpenAI provider
+     - Any other value → Local provider (for testing)
+   - OpenAI: Uses o3-mini model with file search capabilities
+   - Local: Returns mock data from JSON file
+   - Strict rules: only checks claims about people, not events or achievements
+   - Returns OK/NG status with explanations and citations
 
-**Fact Checking Engine** (`src/lib/fact-check.ts`)
-- Uses OpenAI o3-mini model with vector store for document search
-- Implements strict fact-checking criteria with filtering rules
-- Returns structured results with citations from knowledge base
+2. **Twitter Integration** (`src/lib/twitter.ts`, `src/lib/twitter_query/`)
+   - Searches for Team Mirai-related posts using Twitter API v2
+   - Configurable keywords and filters in `src/lib/twitter_query/config.ts`
 
-**Twitter Integration** (`src/lib/twitter.ts`)
-- Supports both OAuth 1.0a (read/write) and OAuth 2 Bearer (read-only)
-- Automatically selects authentication method based on available env vars
+3. **Slack Integration** (`src/lib/slack/`)
+   - Sends notifications when misinformation is detected
+   - Supports interactive buttons for actions
+   - Uses Slack Bolt framework
 
-**Slack Integration** (`src/lib/slack/`)
-- Real-time notifications for problematic tweets
-- Interactive Slack app with actions and events
+4. **Web Server** (`src/index.ts`)
+   - Built with Hono framework
+   - Main endpoints:
+     - `GET /cron/fetch` - Scheduled endpoint for Twitter monitoring (protected by CRON_SECRET)
+     - `POST /slack/events` - Webhook for Slack events
+     - `POST /slack/actions` - Webhook for Slack interactive actions
 
-**Query Builder** (`src/lib/twitter_query/`)
-- Configurable search query construction for Twitter API
-- Supports multiple keywords with OR logic and filters
+### Environment Variables Required
 
-### Environment Variables
+All stored in `.env` file:
 
-Essential variables (see README.md for complete list):
-- `OPENAI_API_KEY` - OpenAI API access
-- `VECTOR_STORE_ID` - OpenAI vector store for knowledge base
-- `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_CHANNEL_ID` - Slack integration
-- `X_APP_KEY`, `X_APP_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET` - Twitter OAuth 1.0a
-- `X_BEARER_TOKEN` - Twitter OAuth 2 (alternative to OAuth 1.0a)
-- `CRON_SECRET` - Authentication for cron endpoints
+#### Core System
+- `ENV` - Environment mode (`prod`, `dev`, or other values for local testing, defaults to `local`)
 
-### Data Flow
+#### OpenAI Provider (when using `openai`)
+- `OPENAI_API_KEY` - OpenAI API key
+- `VECTOR_STORE_ID` - OpenAI vector store ID (obtained after running `bun run upload`)
 
-1. **Setup**: Documents in `policy/` are uploaded to OpenAI vector store
-2. **Monitoring**: Cron job calls `/cron/fetch` to search recent tweets
-3. **Analysis**: Each tweet is fact-checked against vector store knowledge base
-4. **Notification**: Problematic tweets trigger Slack alerts with citations
+#### External APIs
+- `X_BEARER_TOKEN` - Twitter/X API Bearer Token
+- `SLACK_BOT_TOKEN` - Slack Bot User OAuth Token
+- `SLACK_SIGNING_SECRET` - Slack Signing Secret
+- `SLACK_CHANNEL_ID` - Slack channel ID for notifications
+- `CRON_SECRET` - Secret for authenticating cron requests
 
-### Code Standards
+## Development Guidelines
 
-- Uses Biome for linting and formatting (2-space indentation, double quotes)
-- Pre-commit hook runs `bun run biome:check:write` with auto-staging
-- TypeScript with strict configuration
+### Code Style
+- TypeScript with strict mode enabled
+- Biome for formatting: 2 spaces, double quotes
+- Pre-commit hooks run Biome checks automatically via Lefthook
+
+### Fact-Checking Logic
+The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
+- Only checks factual claims about people (not events/achievements)
+- Requires citations from vector store for NG judgments
+- Uses structured prompts for consistent output format
+
+### Testing Approach
+- Tests located in `src/__tests__/`
+- Use Bun's built-in test runner
+- Focus on unit testing query builders and core logic
+- When using `test.each` with Bun, use array format for proper variable interpolation:
+  ```typescript
+  test.each([
+    ["dev", "openai"],
+    ["prod", "openai"],
+  ])("ENVが%sの場合、%sが使用されること", (env, want) => {
+    // test implementation
+  });
+  ```
+
+## Local Development Setup
+
+### Option 1: OpenAI API (Production Setup)
+
+1. **Set environment variables**:
+   ```bash
+   # .env
+   ENV=prod  # or dev
+   OPENAI_API_KEY=your_openai_api_key
+   VECTOR_STORE_ID=your_vector_store_id
+   ```
+
+2. **Upload policy documents**:
+   ```bash
+   bun run upload
+   ```
+
+3. **Run the application**:
+   ```bash
+   bun run dev
+   ```
+
+### Option 2: Local Mock Data (Testing Setup)
+
+1. **Set environment variables**:
+   ```bash
+   # .env
+   ENV=local  # or any value other than prod/dev
+   ```
+
+2. **Run the application**:
+   ```bash
+   bun run dev
+   ```
+
+Note: Local provider returns mock data from `src/lib/fact_checker/data/fact-check-result.json`
