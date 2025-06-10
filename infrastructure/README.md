@@ -1,131 +1,181 @@
 # Fact-Checker Infrastructure
 
-このディレクトリには、fact-checkerアプリケーションのTerraformインフラストラクチャ設定が含まれています。
+このディレクトリには、Fact-CheckerシステムのTerraformインフラストラクチャ定義が含まれています。
 
 ## 概要
 
-このインフラストラクチャは、Issue #31の要件に基づいて設計されており、PRごとに検証環境を作成できるシステムを提供します。
+- **環境自動判定**: mainブランチ = 本番環境、その他 = 検証環境
+- **リソース命名**: `x-fact-checker-prod` / `x-fact-checker-staging`
+- **外部設定管理**: 全ての機密情報は環境変数で管理
+- **安全弁システム**: 3段階の安全フラグで意図しないリソース作成を防止
 
-### アーキテクチャ
+## ディレクトリ構成
 
-```mermaid
-flowchart TB
- subgraph GitHub["GitHub"]
-        PR1["PR #123"]
-        PR2["PR #456"]
-        Main["main branch"]
-  end
- subgraph subGraph1["Cloud Run Services"]
-        CR1["x-fact-checker-staging"]
-        CRProd["x-fact-checker-prod"]
-  end
- subgraph subGraph2["Cloud Scheduler"]
-        CS1["cron-staging"]
-        CSProd["cron-prod"]
-  end
- subgraph subGraph3["Container Registry"]
-        IMG1["app:staging"]
-        IMGProd["app:prod"]
-  end
- subgraph subGraph4["Google Cloud Project"]
-        subGraph1
-        subGraph2
-        subGraph3
-  end
-    PR1 --> CR1
-    PR2 --> CR1
-    Main --> CRProd
-    CS1 --> CR1
-    CSProd --> CRProd
+```
+infrastructure/
+├── main.tf              # メイン設定・環境判定ロジック
+├── variables.tf         # 変数定義
+├── outputs.tf          # 出力定義
+├── versions.tf         # Terraformバージョン制約
+├── terraform.tfvars.example  # 設定例
+├── README.md           # このファイル
+└── modules/
+    ├── fact-checker-app/    # Cloud Runアプリケーション
+    ├── secrets/            # Secret Manager
+    └── scheduler/          # Cloud Scheduler
 ```
 
-## モジュール構成
+## 環境判定ロジック
 
-### 1. secrets モジュール
-- Secret Managerでの機密情報管理
-- 環境別のSecret命名規則
-- サービスアカウントへのアクセス権限付与
+| ブランチ | 環境 | リソース接尾辞 | サービス名 |
+|---------|------|---------------|-----------|
+| main | production | prod | x-fact-checker-prod |
+| その他 | staging | staging | x-fact-checker-staging |
 
-### 2. fact-checker-app モジュール
-- Cloud Runサービスの設定
-- サービスアカウントとIAM設定
-- ヘルスチェックとスケーリング設定
-- 環境変数とSecret統合
+## 必要な環境変数
 
-### 3. scheduler モジュール
-- Cloud Schedulerジョブの設定
-- 認証付きHTTPリクエスト
-- 環境別のスケジュール設定
+### GCP関連
+```bash
+export TF_VAR_gcp_project_id="your-gcp-project-id"
+export TF_VAR_branch_name="main"  # または任意のブランチ名
+```
 
-## 環境設定
+### OpenAI関連
+```bash
+export TF_VAR_openai_api_key="sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+export TF_VAR_vector_store_id="vs_XXXXXXXXXXXXXXXXXXXXXXXX"
+```
 
-### 本番環境 (main ブランチ)
-- `x-fact-checker-prod`
-- 最小インスタンス数: 1
-- 最大インスタンス数: 20
-- CPU制限: 2
-- メモリ制限: 1Gi
-- Cronスケジュール: 9-21時 毎時実行
+### Slack関連
+```bash
+export TF_VAR_slack_bot_token="xoxb-XXXXXXXXXXXX-XXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXX"
+export TF_VAR_slack_signing_secret="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+export TF_VAR_slack_channel_id="C01XXXXXXXXX"
+```
 
-### ステージング環境 (その他のブランチ)
-- `x-fact-checker-staging`
-- 設定可能なリソース制限
-- デバッグログレベル
-- カスタマイズ可能なCronスケジュール
+### X(Twitter)関連
+```bash
+export TF_VAR_x_app_key="XXXXXXXXXXXXXXXXXXXXXXXX"
+export TF_VAR_x_app_secret="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+export TF_VAR_x_access_token="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+export TF_VAR_x_access_secret="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+```
 
-## 安全弁システム
-
-GitHub Actionsワークフローには3段階の安全弁が実装されています：
-
-1. **ENABLE_DOCKER_BUILD**: Dockerイメージのビルドを制御
-2. **ENABLE_TERRAFORM_APPLY**: Terraformの実際の適用を制御
-3. **ENABLE_PRODUCTION_DEPLOY**: 本番環境への展開を制御
+### その他
+```bash
+export TF_VAR_cron_secret="your-secure-random-string"
+```
 
 ## 使用方法
 
-### 1. 初期設定
+### 1. 初期化
 ```bash
 cd infrastructure
 terraform init
 ```
 
-### 2. 設定の検証
+### 2. 設定検証
 ```bash
 terraform validate
 ```
 
-### 3. 実行計画の確認
+### 3. 実行計画確認
 ```bash
 terraform plan
 ```
 
-### 4. インフラストラクチャの適用
+### 4. 適用（注意：実際のリソースが作成されます）
 ```bash
 terraform apply
 ```
 
-## 必要な変数
+## 安全弁システム
 
-以下の変数を設定する必要があります：
+GitHub Actionsでは以下の3つの安全フラグで制御されます：
 
-- `gcp_project_id`: GCPプロジェクトID
-- `branch_name`: ブランチ名（環境判定用）
-- `region`: GCPリージョン（デフォルト: asia-northeast1）
+1. **ENABLE_DOCKER_BUILD**: `false` (初期値)
+   - Dockerイメージのビルドを制御
 
-## Secret管理
+2. **ENABLE_TERRAFORM_APPLY**: `false` (初期値)
+   - Terraformリソースの作成を制御
 
-以下のSecretがSecret Managerで管理されます：
+3. **ENABLE_PRODUCTION_DEPLOY**: `false` (初期値)
+   - 本番環境への適用を制御
 
-- OpenAI API Key
-- Vector Store ID
-- Slack Bot Token
-- Slack Signing Secret
-- Slack Channel ID
-- X (Twitter) API認証情報
-- Cron Secret
+## 環境固有設定
+
+### 検証環境（デフォルト）
+- 最小インスタンス数: 0
+- 最大インスタンス数: 10
+- CPU制限: 1
+- メモリ制限: 512Mi
+- Cronスケジュール: 1日1回（12:00）
+
+### 本番環境（mainブランチ）
+- 最小インスタンス数: 1
+- 最大インスタンス数: 20
+- CPU制限: 2
+- メモリ制限: 1Gi
+- Cronスケジュール: 9-21時毎時実行
+
+## 作成されるリソース
+
+### Cloud Run
+- アプリケーションサービス
+- サービスアカウント
+- IAM権限設定
+
+### Secret Manager
+- 全ての機密情報（API キー、トークンなど）
+- 環境固有の命名
+
+### Cloud Scheduler
+- 定期実行ジョブ
+- 認証設定
+
+### Artifact Registry
+- Dockerイメージリポジトリ
+
+## トラブルシューティング
+
+### よくあるエラー
+
+1. **認証エラー**
+   ```
+   Error: google: could not find default credentials
+   ```
+   → GCPサービスアカウントキーを設定してください
+
+2. **権限エラー**
+   ```
+   Error: Error creating Secret: googleapi: Error 403
+   ```
+   → サービスアカウントに適切な権限が付与されているか確認してください
+
+3. **リソース名重複**
+   ```
+   Error: Error creating Service: googleapi: Error 409
+   ```
+   → 既存のリソースと名前が重複していないか確認してください
+
+### デバッグ方法
+
+```bash
+# Terraformログレベルを上げる
+export TF_LOG=DEBUG
+terraform plan
+
+# 特定のリソースのみ適用
+terraform apply -target=module.secrets
+
+# 状態確認
+terraform show
+terraform state list
+```
 
 ## 注意事項
 
-- 本番環境への展開には`ENABLE_PRODUCTION_DEPLOY=true`の設定が必要
-- 全ての安全弁が無効化されている場合、実際のリソース作成は行われません
-- 環境別のSecret命名により、本番とステージングの設定が分離されています
+- **機密情報**: `.tfvars`ファイルには機密情報を記載しないでください
+- **環境分離**: 本番と検証環境のリソースは完全に分離されています
+- **コスト管理**: 不要な環境は適切に削除してください
+- **バックアップ**: Terraform状態ファイルは適切にバックアップしてください
