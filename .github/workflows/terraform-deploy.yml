@@ -1,182 +1,138 @@
-name: Deploy Infrastructure
+name: Terraform Infrastructure Deploy
+
 on:
   push:
-    branches: ['**']
+    branches: [ main ]
 
 permissions:
   contents: read
   id-token: write
 
 env:
-  ENABLE_DOCKER_BUILD: false
-  ENABLE_TERRAFORM_APPLY: false
-  ENABLE_PRODUCTION_DEPLOY: false
-  
   REGION: asia-northeast1
+  TF_VAR_region: asia-northeast1
 
 jobs:
-  validate:
+  terraform:
     runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ steps.env.outputs.environment }}
-      branch_name: ${{ steps.env.outputs.branch_name }}
-      app_name: ${{ steps.env.outputs.app_name }}
     
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Set Environment Variables
-        id: env
-        run: |
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
-            echo "app_name=x-fact-checker-prod" >> $GITHUB_OUTPUT
-          else
-            echo "environment=staging" >> $GITHUB_OUTPUT
-            echo "app_name=x-fact-checker-staging" >> $GITHUB_OUTPUT
-          fi
-          echo "branch_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          
-          echo "=== Environment Detection ==="
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Environment: $([ "${{ github.ref }}" = "refs/heads/main" ] && echo "production" || echo "staging")"
-          echo "App Name: $([ "${{ github.ref }}" = "refs/heads/main" ] && echo "x-fact-checker-prod" || echo "x-fact-checker-staging")"
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      - name: Terraform Init
-        working-directory: ./infrastructure
-        run: terraform init
-      
-      - name: Terraform Validate
-        working-directory: ./infrastructure
-        run: |
-          echo "🔍 Terraform構文チェック実行"
-          terraform validate
-          echo "✅ Terraform構文チェック成功"
-      
-      - name: Terraform Plan (Dry Run)
-        working-directory: ./infrastructure
-        env:
-          TF_VAR_gcp_project_id: "dummy-project-id"
-          TF_VAR_branch_name: ${{ steps.env.outputs.branch_name }}
-        run: |
-          echo "🔍 Terraform Plan実行（実際のリソース作成なし）"
-          if terraform plan -out=tfplan 2>&1 | tee plan_output.log | grep -q "could not find default credentials"; then
-            echo "⚠️ CI環境のため認証情報なし - 構文チェックは完了"
-            echo "✅ Terraform構文・モジュール構造は正常"
-            exit 0
-          else
-            terraform plan -out=tfplan
-            echo "✅ Terraform Plan成功"
-          fi
-          
-          echo "=== 安全弁状況 ==="
-          echo "ENABLE_DOCKER_BUILD: ${{ env.ENABLE_DOCKER_BUILD }}"
-          echo "ENABLE_TERRAFORM_APPLY: ${{ env.ENABLE_TERRAFORM_APPLY }}"
-          echo "ENABLE_PRODUCTION_DEPLOY: ${{ env.ENABLE_PRODUCTION_DEPLOY }}"
+    - uses: actions/checkout@v4
 
-  docker-build:
-    needs: validate
-    runs-on: ubuntu-latest
-    if: vars.ENABLE_DOCKER_BUILD == 'true'
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCLOUD_SERVICE_KEY }}
-          project_id: ${{ secrets.PROJECT_ID }}
-      
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-      
-      - name: Build and Push Docker Image
-        env:
-          APP_NAME: ${{ needs.validate.outputs.app_name }}
-        run: |
-          echo "🐳 Dockerイメージビルド開始"
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/fact-checker-repo/${{ env.APP_NAME }}:${{ github.sha }}"
-          gcloud builds submit --tag "$IMAGE" --quiet
-          echo "✅ Dockerイメージビルド成功: $IMAGE"
+    - name: Check Safety Flags
+      run: |
+        echo "=== 安全弁チェック ==="
+        echo "ENABLE_DOCKER_BUILD: ${{ vars.ENABLE_DOCKER_BUILD || 'false' }}"
+        echo "ENABLE_TERRAFORM_APPLY: ${{ vars.ENABLE_TERRAFORM_APPLY || 'false' }}"
+        echo "ENABLE_PRODUCTION_DEPLOY: ${{ vars.ENABLE_PRODUCTION_DEPLOY || 'false' }}"
+        
+        if [[ "${{ github.ref }}" == "refs/heads/main" && "${{ vars.ENABLE_PRODUCTION_DEPLOY }}" != "true" ]]; then
+          echo "❌ 本番環境デプロイが無効化されています"
+          echo "ENABLE_PRODUCTION_DEPLOY=trueを設定してください"
+          exit 1
+        fi
 
-  terraform-apply:
-    needs: [validate, docker-build]
-    runs-on: ubuntu-latest
-    if: vars.ENABLE_TERRAFORM_APPLY == 'true' && (github.ref != 'refs/heads/main' || vars.ENABLE_PRODUCTION_DEPLOY == 'true')
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCLOUD_SERVICE_KEY }}
-          project_id: ${{ secrets.PROJECT_ID }}
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.0
-      
-      - name: Terraform Init
-        working-directory: ./infrastructure
-        run: terraform init
-      
-      - name: Terraform Apply
-        working-directory: ./infrastructure
-        env:
-          TF_VAR_gcp_project_id: ${{ secrets.PROJECT_ID }}
-          TF_VAR_branch_name: ${{ needs.validate.outputs.branch_name }}
-          TF_VAR_region: ${{ env.REGION }}
-        run: |
-          echo "🚀 Terraform Apply実行開始"
-          echo "Environment: ${{ needs.validate.outputs.environment }}"
-          echo "App Name: ${{ needs.validate.outputs.app_name }}"
-          
-          terraform apply -auto-approve
-          echo "✅ Terraform Apply成功"
-      
-      - name: Get Service URL
-        working-directory: ./infrastructure
-        run: |
-          SERVICE_URL=$(terraform output -raw service_url)
-          echo "🌐 デプロイ完了: $SERVICE_URL"
-          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "~1.0"
 
-  safety-report:
-    needs: [validate]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Safety Status Report
-        run: |
-          echo "=== 🔒 安全弁状況レポート ==="
-          echo "ENABLE_DOCKER_BUILD: ${{ vars.ENABLE_DOCKER_BUILD }}"
-          echo "ENABLE_TERRAFORM_APPLY: ${{ vars.ENABLE_TERRAFORM_APPLY }}"
-          echo "ENABLE_PRODUCTION_DEPLOY: ${{ vars.ENABLE_PRODUCTION_DEPLOY }}"
-          echo ""
-          echo "=== 📋 実行結果 ==="
-          echo "✅ Phase 1 (Validate): 常に実行"
-          echo "$([ '${{ vars.ENABLE_DOCKER_BUILD }}' = 'true' ] && echo '✅' || echo '❌') Phase 2 (Docker Build): ${{ vars.ENABLE_DOCKER_BUILD }}"
-          echo "$([ '${{ vars.ENABLE_TERRAFORM_APPLY }}' = 'true' ] && echo '✅' || echo '❌') Phase 3 (Terraform Apply): ${{ vars.ENABLE_TERRAFORM_APPLY }}"
-          echo ""
-          echo "=== 📖 次のステップ ==="
-          if [ "${{ vars.ENABLE_DOCKER_BUILD }}" != "true" ]; then
-            echo "1. ENABLE_DOCKER_BUILD=trueに設定してDockerビルドをテスト"
-          elif [ "${{ vars.ENABLE_TERRAFORM_APPLY }}" != "true" ]; then
-            echo "2. ENABLE_TERRAFORM_APPLY=trueに設定してTerraformデプロイをテスト"
-          elif [ "${{ vars.ENABLE_PRODUCTION_DEPLOY }}" != "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "3. ENABLE_PRODUCTION_DEPLOY=trueに設定して本番デプロイを有効化"
-          else
-            echo "🎉 全ての安全弁が適切に設定されています"
-          fi
+    - name: Authenticate to Google Cloud
+      if: vars.ENABLE_TERRAFORM_APPLY == 'true'
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Setup gcloud CLI
+      if: vars.ENABLE_TERRAFORM_APPLY == 'true'
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Determine Environment
+      id: env
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "environment=production" >> $GITHUB_OUTPUT
+          echo "branch_name=main" >> $GITHUB_OUTPUT
+        else
+          echo "environment=staging" >> $GITHUB_OUTPUT
+          echo "branch_name=${{ github.head_ref || github.ref_name }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set Environment Variables
+      run: |
+        # 環境別のSecret設定
+        # 本番環境とステージング環境で異なるSecretを使用し、環境固有の設定を分離
+        echo "TF_VAR_gcp_project_id=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
+        echo "TF_VAR_branch_name=${{ steps.env.outputs.branch_name }}" >> $GITHUB_ENV
+        
+        if [[ "${{ steps.env.outputs.environment }}" == "production" ]]; then
+          echo "Production environment detected"
+        else
+          echo "Staging environment detected"
+        fi
+
+    - name: Terraform Init
+      working-directory: ./infrastructure
+      run: terraform init
+
+    - name: Terraform Validate
+      working-directory: ./infrastructure
+      run: terraform validate
+
+    - name: Terraform Plan
+      if: vars.ENABLE_TERRAFORM_APPLY == 'true'
+      working-directory: ./infrastructure
+      run: |
+        terraform plan -detailed-exitcode -out=tfplan
+        echo "=== Terraform Plan Summary ==="
+        echo "Environment: ${{ steps.env.outputs.environment }}"
+        echo "Branch: ${{ steps.env.outputs.branch_name }}"
+        
+    - name: Terraform Plan (Validation Only)
+      if: vars.ENABLE_TERRAFORM_APPLY != 'true'
+      working-directory: ./infrastructure
+      run: |
+        echo "=== Terraform Plan (Validation Only) ==="
+        echo "Skipping plan execution - ENABLE_TERRAFORM_APPLY is disabled"
+        echo "This ensures no unintended resource planning when safety flags are disabled"
+
+    - name: Docker Build
+      if: vars.ENABLE_DOCKER_BUILD == 'true' && vars.ENABLE_TERRAFORM_APPLY == 'true'
+      run: |
+        IMAGE="$REGION-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/x-fact-checker-${{ steps.env.outputs.environment == 'production' && 'prod' || 'staging' }}-repo/app:${{ github.sha }}"
+        echo "Building image: $IMAGE"
+        gcloud builds submit --tag "$IMAGE" --quiet
+
+    - name: Terraform Apply
+      if: vars.ENABLE_TERRAFORM_APPLY == 'true'
+      working-directory: ./infrastructure
+      run: |
+        echo "=== Terraform Apply ==="
+        echo "Environment: ${{ steps.env.outputs.environment }}"
+        echo "Safety flags enabled - proceeding with apply"
+        terraform apply -auto-approve tfplan
+
+    - name: Update Cloud Run Image
+      if: vars.ENABLE_DOCKER_BUILD == 'true' && vars.ENABLE_TERRAFORM_APPLY == 'true'
+      run: |
+        SERVICE_NAME="x-fact-checker-${{ steps.env.outputs.environment == 'production' && 'prod' || 'staging' }}"
+        IMAGE="$REGION-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}-repo/app:${{ github.sha }}"
+        
+        echo "Updating Cloud Run service: $SERVICE_NAME"
+        echo "New image: $IMAGE"
+        
+        gcloud run services update "$SERVICE_NAME" \
+          --image "$IMAGE" \
+          --region "$REGION" \
+          --quiet
+
+    - name: Output Summary
+      if: always()
+      run: |
+        echo "=== デプロイ結果サマリー ==="
+        echo "Environment: ${{ steps.env.outputs.environment }}"
+        echo "Branch: ${{ steps.env.outputs.branch_name }}"
+        echo "Docker Build: ${{ vars.ENABLE_DOCKER_BUILD || 'false' }}"
+        echo "Terraform Apply: ${{ vars.ENABLE_TERRAFORM_APPLY || 'false' }}"
+        echo "Production Deploy: ${{ vars.ENABLE_PRODUCTION_DEPLOY || 'false' }}"

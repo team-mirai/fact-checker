@@ -1,4 +1,37 @@
 
+locals {
+  environment = var.branch_name == "main" ? "production" : "staging"
+  
+  env_suffix = local.environment == "production" ? "prod" : "staging"
+  app_name   = "x-fact-checker-${local.env_suffix}"
+
+  environment_config = {
+    production = {
+      min_instances = 1
+      max_instances = 20
+      cpu_limit     = "2"
+      memory_limit  = "1Gi"
+      schedule      = "0 9-21 * * *"
+      log_level     = "info"
+    }
+    staging = {
+      min_instances = var.min_instances
+      max_instances = var.max_instances
+      cpu_limit     = var.cpu_limit
+      memory_limit  = var.memory_limit
+      schedule      = var.cron_schedule
+      log_level     = var.log_level
+    }
+  }
+  
+  current_config = local.environment_config[local.environment]
+  
+  common_labels = {
+    environment = local.environment
+    application = "fact-checker"
+    managed-by  = "terraform"
+  }
+}
 
 provider "google" {
   project = var.gcp_project_id
