@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { createFactChecker } from "./lib/fact_checker";
-import { notifySlack, slackApp } from "./lib/slack";
-import { sendSlackMessage } from "./lib/slack/sendSlackMessage";
+import { createSlackProvider } from "./lib/slack";
 import { twitter } from "./lib/twitter";
 import { buildSearchQuery } from "./lib/twitter_query/query_build";
 import { verifyCron } from "./middlewares/verify-cron";
@@ -12,6 +11,7 @@ import { verifyCron } from "./middlewares/verify-cron";
 const app = new Hono();
 
 const factChcker = createFactChecker();
+const slackProvider = createSlackProvider();
 
 app.get("/", (c) => c.text("Hello Hono!"));
 
@@ -30,7 +30,11 @@ async function checkAndNotify(tweetText: string, tweetUrl: string) {
 
   if (!check.ok) {
     // NG のときだけ即 Slack 通知
-    await notifySlack(check.answer, tweetText, tweetUrl);
+    await slackProvider.notify({
+      answer: check.answer,
+      tweet: tweetText,
+      tweetUrl: tweetUrl,
+    });
     return { notified: true, check };
   }
 
@@ -50,7 +54,7 @@ app.get("/test/slack", verifyCron, async (c) => {
 
     // NG が無かったらここで OK 通知を 1 回だけ送る
     if (!notified) {
-      await sendSlackMessage({
+      await slackProvider.sendMessage({
         text: "✅ ファクトチェックが必要なツイートはありませんでした",
       });
     }
@@ -89,7 +93,7 @@ app.get("/cron/fetch", verifyCron, async (c) => {
 
   // NG が 1 件も無かったら OK 通知を 1 回だけ送信
   if (!hasNg) {
-    await sendSlackMessage({
+    await slackProvider.sendMessage({
       text: "✅ ファクトチェックが必要なツイートはありませんでした",
     });
   }
@@ -107,8 +111,8 @@ app.post("/slack/events", async (c) => {
       return c.json({ challenge: body.challenge });
     }
 
-    // Bolt へは body と ack を渡す
-    await slackApp.processEvent({
+    // Provider へは body と ack を渡す
+    await slackProvider.processEvent({
       body,
       ack: async () => {}, // 即時 ack
     });
@@ -134,8 +138,8 @@ app.post("/slack/actions", async (c) => {
   // ② JSON へ変換
   const payload = JSON.parse(raw);
 
-  // ③ Bolt へ委譲 — ack はレスポンスを返さず Promise<void>
-  await slackApp.processEvent({
+  // ③ Provider へ委譲 — ack はレスポンスを返さず Promise<void>
+  await slackProvider.processEvent({
     body: payload,
     ack: async () => {}, // 型：AckFn => Promise<void>
   });
