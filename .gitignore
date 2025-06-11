@@ -6,3 +6,9 @@ node_modules/
 
 # config
 config/
+
+# Terraform
+infrastructure/.terraform/
+infrastructure/.terraform.lock.hcl
+infrastructure/terraform.tfstate*
+infrastructure/tfplan
