@@ -20,6 +20,12 @@ This is a Twitter/X fact-checking bot that monitors posts about "チームみら
 
 ### Testing
 - `bun test` - Run tests using Bun's built-in test runner
+- `bun test src/__tests__/specific.test.ts` - Run a single test file
+
+### Build
+- `bun run build` - Build main application (includes typecheck)
+- `bun run build:scripts` - Build scripts only (for CLI tools)
+- `bun run typecheck` - Run TypeScript type checking only
 
 ## Architecture Overview
 
@@ -83,6 +89,7 @@ All stored in `.env` file:
 - TypeScript with strict mode enabled
 - Biome for formatting: 2 spaces, double quotes
 - Pre-commit hooks run Biome checks automatically via Lefthook
+- Pre-push hooks run full build to ensure deployability
 
 ### Fact-Checking Logic
 The fact-checker has specific rules defined in `src/lib/fact-check.ts`:
