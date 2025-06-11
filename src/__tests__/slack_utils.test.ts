@@ -7,28 +7,35 @@ import {
 
 describe("slack utils", () => {
   describe("preventAutolink", () => {
-    test("README.mdがリンク防止文字で変換されること", () => {
-      const input = "See README.md for details";
+    test.each([
+      [
+        "README.mdがリンク防止文字で変換されること",
+        "See README.md for details",
+        ["README\u2060.md"],
+        ["README.md"],
+      ],
+      [
+        "HTTPSのURLがリンク防止文字で変換されること",
+        "Visit https://example.com for more info",
+        ["https://example\u2060.com"],
+        ["https://example.com"],
+      ],
+      [
+        "複数のURLが変換されること",
+        "Check https://github.com and http://example.org",
+        ["https://github\u2060.com", "http://example\u2060.org"],
+        [],
+      ],
+    ])("%s", (_, input, expectedContains, expectedNotContains) => {
       const result = preventAutolink(input);
 
-      expect(result).toContain("README\u2060.md");
-      expect(result).not.toContain("README.md");
-    });
+      for (const expected of expectedContains) {
+        expect(result).toContain(expected);
+      }
 
-    test("HTTPSのURLがリンク防止文字で変換されること", () => {
-      const input = "Visit https://example.com for more info";
-      const result = preventAutolink(input);
-
-      expect(result).toContain("https://example\u2060.com");
-      expect(result).not.toContain("https://example.com");
-    });
-
-    test("複数のURLが変換されること", () => {
-      const input = "Check https://github.com and http://example.org";
-      const result = preventAutolink(input);
-
-      expect(result).toContain("https://github\u2060.com");
-      expect(result).toContain("http://example\u2060.org");
+      for (const notExpected of expectedNotContains) {
+        expect(result).not.toContain(notExpected);
+      }
     });
   });
 
@@ -62,32 +69,30 @@ describe("slack utils", () => {
   });
 
   describe("removeMentions", () => {
-    test("メンション文字列が除去されること", () => {
-      const input = "<@U1234567> hello world";
+    test.each([
+      [
+        "メンション文字列が除去されること",
+        "<@U1234567> hello world",
+        "hello world",
+      ],
+      [
+        "複数のメンションが除去されること",
+        "<@U1234567> <@W8901234> hello world",
+        "hello world",
+      ],
+      [
+        "メンションがない場合はそのまま返されること",
+        "hello world",
+        "hello world",
+      ],
+      [
+        "前後の空白が適切にトリムされること",
+        "  <@U1234567>  hello world  ",
+        "hello world",
+      ],
+    ])("%s", (_, input, expected) => {
       const result = removeMentions(input);
-
-      expect(result).toBe("hello world");
-    });
-
-    test("複数のメンションが除去されること", () => {
-      const input = "<@U1234567> <@W8901234> hello world";
-      const result = removeMentions(input);
-
-      expect(result).toBe("hello world");
-    });
-
-    test("メンションがない場合はそのまま返されること", () => {
-      const input = "hello world";
-      const result = removeMentions(input);
-
-      expect(result).toBe("hello world");
-    });
-
-    test("前後の空白が適切にトリムされること", () => {
-      const input = "  <@U1234567>  hello world  ";
-      const result = removeMentions(input);
-
-      expect(result).toBe("hello world");
+      expect(result).toBe(expected);
     });
   });
 });
