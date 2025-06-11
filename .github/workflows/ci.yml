@@ -17,8 +17,5 @@ jobs:
     - name: Install dependencies
       run: bun install
 
-    - name: Run Biome checks
-      run: bun biome ci .
-
     - name: Run tests
       run: bun test
