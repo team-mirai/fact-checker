@@ -15,5 +15,3 @@ export function createTwitterProvider(): BaseTwitterProvider {
       throw new Error(`Unknown twitter provider: ${provider}`);
   }
 }
-
-export type { BaseTwitterProvider } from "./types";
