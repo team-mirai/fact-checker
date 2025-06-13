@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { createFactChecker } from "./lib/fact_checker";
 import { createSlackProvider } from "./lib/slack";
-import { twitter } from "./lib/twitter";
+import { createTwitterProvider } from "./lib/twitter";
 import { buildSearchQuery } from "./lib/twitter_query/query_build";
 import { verifyCron } from "./middlewares/verify-cron";
 
@@ -12,6 +12,7 @@ const app = new Hono();
 
 const factChcker = createFactChecker();
 const slackProvider = createSlackProvider();
+const twitterProvider = createTwitterProvider();
 
 app.get("/", (c) => c.text("Hello Hono!"));
 
@@ -71,6 +72,35 @@ app.get("/test/slack", verifyCron, async (c) => {
   }
 });
 
+// Twitter Provider テスト用エンドポイント
+// FYI localの動作確認用で一旦設置
+app.get("/test/twitter", async (c) => {
+  const query = c.req.query("q") || "チームみらい";
+  const maxResults = Number(c.req.query("max_results")) || 10;
+
+  try {
+    const result = await twitterProvider.searchTweets({
+      query,
+      max_results: maxResults,
+    });
+
+    return c.json({
+      provider: process.env.ENV || "local",
+      query,
+      max_results: maxResults,
+      result,
+    });
+  } catch (error) {
+    return c.json(
+      {
+        error: error instanceof Error ? error.message : "Unknown error",
+        provider: process.env.ENV || "local",
+      },
+      500,
+    );
+  }
+});
+
 /* ------------------------------------------------------------ */
 /* 1. cron 用エンドポイント (Vercel / Cloudflare Cron でも OK)  */
 /* ------------------------------------------------------------ */
@@ -78,13 +108,13 @@ app.get("/cron/fetch", verifyCron, async (c) => {
   const query = buildSearchQuery();
 
   // Twitter 検索
-  const res = await twitter.v2.search(query, { max_results: 30 });
+  const res = await twitterProvider.searchTweets({ query, max_results: 30 });
 
   // ───────────────────────────────────────────
   // 並列でファクトチェック & NG 通知を実行
   // ───────────────────────────────────────────
   const results = await Promise.all(
-    (res.tweets ?? []).map((t) => {
+    (res.data ?? []).map((t) => {
       const tweetUrl = `https://x.com/i/web/status/${t.id}`;
       return checkAndNotify(t.text, tweetUrl);
     }),
