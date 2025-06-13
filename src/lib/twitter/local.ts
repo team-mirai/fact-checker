@@ -7,7 +7,7 @@ import type {
 
 export class LocalTwitterProvider implements BaseTwitterProvider {
   async searchTweets(_params: SearchTweetsParams): Promise<SearchTweetsResult> {
-    return { data: [] };
+    return { tweets: [] };
   }
 
   async postTweet(params: PostTweetParams): Promise<void> {

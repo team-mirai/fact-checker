@@ -46,7 +46,7 @@ export class TwitterProvider implements BaseTwitterProvider {
     });
 
     return {
-      data: result.data?.data?.map((tweet) => ({
+      tweets: result.data?.data?.map((tweet) => ({
         id: tweet.id,
         text: tweet.text,
         author_id: tweet.author_id,

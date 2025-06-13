@@ -114,7 +114,7 @@ app.get("/cron/fetch", verifyCron, async (c) => {
   // 並列でファクトチェック & NG 通知を実行
   // ───────────────────────────────────────────
   const results = await Promise.all(
-    (res.data ?? []).map((t) => {
+    (res.tweets ?? []).map((t) => {
       const tweetUrl = `https://x.com/i/web/status/${t.id}`;
       return checkAndNotify(t.text, tweetUrl);
     }),

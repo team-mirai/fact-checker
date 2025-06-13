@@ -11,7 +11,7 @@ export interface SearchTweetsParams {
 }
 
 export interface SearchTweetsResult {
-  data?: Tweet[];
+  tweets?: Tweet[];
 }
 
 export interface PostTweetParams {
