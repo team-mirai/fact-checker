@@ -2,6 +2,7 @@
   "name": "x-fact-check",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
+    "build": "bun build src/index.ts --outfile dist/index.js --minify --target bun && rm -rf dist",
     "upload": "bun run scripts/upload.ts",
     "fact-check": "bun run scripts/fact-check.cli.ts",
     "biome:check:write": "biome check --write .",
