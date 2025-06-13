@@ -1,5 +1,5 @@
 import type { App, BlockAction, ButtonAction } from "@slack/bolt";
-import { twitter } from "../twitter";
+import { createTwitterProvider } from "../twitter";
 import type { ButtonValue } from "./types";
 import { extractTweetId, preventAutolink } from "./utils";
 
@@ -12,6 +12,8 @@ export interface ActionHandlers {
 }
 
 export function createActionHandlers(): ActionHandlers {
+  const twitterProvider = createTwitterProvider();
+
   return {
     approve_and_post: async ({ ack, action, body, client, logger }) => {
       /* 1. 3 秒以内に ACK */
@@ -41,7 +43,7 @@ export function createActionHandlers(): ActionHandlers {
       /* 4. 引用 RT でポスト（URL でなく quote_tweet_id を使う） */
       const quoteId = extractTweetId(payload.originalTweetUrl);
       try {
-        await twitter.v2.tweet({
+        await twitterProvider.postTweet({
           text: status,
           quote_tweet_id: quoteId,
         });

@@ -22,6 +22,9 @@ describe("createSlackProvider", () => {
       process.env.SLACK_BOT_TOKEN = "test-token";
       process.env.SLACK_SIGNING_SECRET = "test-secret";
       process.env.SLACK_CHANNEL_ID = "test-channel";
+      process.env.OPENAI_API_KEY = "test-openai-key";
+      process.env.VECTOR_STORE_ID = "test-vector-store-id";
+      process.env.X_BEARER_TOKEN = "test-x-bearer-token";
     }
 
     const want =
