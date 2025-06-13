@@ -89,7 +89,7 @@ All stored in `.env` file:
 - TypeScript with strict mode enabled
 - Biome for formatting: 2 spaces, double quotes
 - Pre-commit hooks run Biome checks automatically via Lefthook
-- Pre-push hooks run full build to ensure deployability
+- Pre-push hooks run full build and script builds to ensure deployability
 
 ### Fact-Checking Logic
 The fact-checker has specific rules defined in `src/lib/fact-check.ts`:

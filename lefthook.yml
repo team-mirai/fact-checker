@@ -8,3 +8,5 @@ pre-push:
   commands:
     build:
       run: bun run build
+    build-scripts:
+      run: bun run build:scripts
