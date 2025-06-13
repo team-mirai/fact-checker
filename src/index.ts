@@ -75,7 +75,7 @@ app.get("/test/slack", verifyCron, async (c) => {
 // Twitter Provider テスト用エンドポイント
 // FYI localの動作確認用で一旦設置
 app.get("/test/twitter", async (c) => {
-  const query = c.req.query("q") || "チームみらい";
+  const query = c.req.query("q") || "";
   const maxResults = Number(c.req.query("max_results")) || 10;
 
   try {
